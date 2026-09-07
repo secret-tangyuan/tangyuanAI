@@ -10,7 +10,7 @@
 [![CI](https://github.com/secret-tangyuan/tangyuanAI/actions/workflows/python-package.yml/badge.svg)](https://github.com/secret-tangyuan/tangyuanAI/actions)
 
 **作者 / Author**：[secret-tangyuan](https://github.com/secret-tangyuan) · [个人介绍 / Gravatar](https://gravatar.com/secrettangyuan)
-**文档站 / Docs**：[docs.ai.secret-tangyuan.com](https://docs.ai.secret-tangyuan.com/)
+**文档站 / Docs**：[ai.secret-tangyuan.com/docs](https://ai.secret-tangyuan.com/docs)
 
 ---
 
