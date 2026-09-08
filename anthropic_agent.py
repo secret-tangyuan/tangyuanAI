@@ -450,7 +450,14 @@ class AnthropicAgent:
 
     # ---------------- 主对话入口 ----------------
     @_auto_save
-    def conversation_with_tool(self, messages=None, tool: bool = False, images=None):
+    def conversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+    ):
         """
         发起一次对话；遇到 tool_use 时自动执行并继续迭代，
         直至 end_turn / max_tokens / 显式 attempt_completion。
@@ -460,18 +467,20 @@ class AnthropicAgent:
 
         Args:
             messages: 字符串、消息 dict、消息 list
-            tool    : True 表示由 ask_for_help 内部递归，不要再加 user 消息
+            tooluse  : 是否派发 tools schema + 是否允许 FC 续轮。默认 ``True``。
+            addhistory: 是否把 user / assistant / tool_result 写入 history。
+                设 ``False`` 可做"不计入对话"的一次性 AI 调用。
             images  : 图片 URL 或 base64（仅在 messages 为 str 时生效）
         """
         work_history = self.history
 
         # 1. 拼新一轮的 user 消息
-        if not tool and messages is not None:
+        if addhistory and messages is not None:
             user_msg = self._build_user_message(messages, images)
             work_history.append(user_msg)
 
-        # 2. 准备 tools schema（一次收集，每轮复用）
-        tools_schema = self._collect_tools_schema()
+        # 2. 准备 tools schema（一次收集，每轮复用）；tooluse=False 时不派发
+        tools_schema = self._collect_tools_schema() if tooluse else []
 
         # 3. 通过 transport 调 LLM
         transport = HttpxAnthropicTransport(
@@ -555,8 +564,12 @@ class AnthropicAgent:
             if self.stream and not any(b.get("type") == "text" for b in assistant_blocks) and full_text:
                 assistant_blocks.append({"type": "text", "text": full_text})
 
-            work_history.append({"role": "assistant", "content": assistant_blocks})
+            if addhistory:
+                work_history.append({"role": "assistant", "content": assistant_blocks})
             if not tool_uses:
+                break
+            # tooluse=False 时即便 LLM 仍尝试派 tool_use（schema 被忽略等），也不续轮
+            if not tooluse:
                 break
 
             # 5. 顺序执行每一个 tool_use（走 ToolRunner，支持超时转后台）
@@ -594,32 +607,63 @@ class AnthropicAgent:
                 })
 
             # 6. 把所有 tool_result 装回 user 消息
-            work_history.append({"role": "user", "content": tool_results})
+            if addhistory:
+                work_history.append({"role": "user", "content": tool_results})
 
         # 返回最后一轮 assistant 的纯文本
         last = work_history[-1].get("content", []) if work_history else []
         return "".join(b.get("text", "") for b in last if b.get("type") == "text")
 
-    @_auto_save_async
-    async def aconversation_with_tool(self, messages=None, tool: bool = False, images=None):
+    @_auto_save
+    def conversation_with_tool(self, messages=None, tool: bool = False, images=None):
+        """**Deprecated** since v1.3.0; use :meth:`conversation` instead.
+
+        行为等价于 ``self.conversation(messages, tooluse=True, addhistory=True, images=images)``。
         """
-        异步版 conversation_with_tool（基于 transport.achat_stream）。
+        _warnings.warn(
+            "conversation_with_tool is deprecated since v1.3.0; "
+            "use conversation(tooluse=True, addhistory=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.conversation(
+            messages=messages, tooluse=True, addhistory=True, images=images,
+        )
+
+    @_auto_save_async
+    async def aconversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+    ):
+        """
+        异步版 conversation（基于 transport.achat_stream）。
 
         用法::
 
             import asyncio
-            result = asyncio.run(agent.aconversation_with_tool("hi"))
+            result = asyncio.run(agent.aconversation("hi"))
 
         注意：tool_runner 仍是 ThreadPoolExecutor（同步执行工具），但
         LLM 调用走 async，事件循环不被阻塞。
+
+        Args:
+            messages: 字符串、消息 dict、消息 list
+            tooluse  : 是否派发 tools schema + 是否允许 FC 续轮。默认 ``True``。
+            addhistory: 是否把 user / assistant / tool_result 写入 history。
+                设 ``False`` 可做"不计入对话"的一次性 AI 调用。
+            images  : 图片 URL 或 base64
         """
         work_history = self.history
 
-        if not tool and messages is not None:
+        if addhistory and messages is not None:
             user_msg = self._build_user_message(messages, images)
             work_history.append(user_msg)
 
-        tools_schema = self._collect_tools_schema()
+        tools_schema = self._collect_tools_schema() if tooluse else []
         transport = HttpxAnthropicTransport(
             endpoint=self._endpoint(),
             api_key=self.api_key,
@@ -688,8 +732,12 @@ class AnthropicAgent:
                 logger.error(f"{self.name} Anthropic 异步调用失败：{e}")
                 raise
 
-            work_history.append({"role": "assistant", "content": assistant_blocks})
+            if addhistory:
+                work_history.append({"role": "assistant", "content": assistant_blocks})
             if not tool_uses:
+                break
+            # tooluse=False 时即便 LLM 仍尝试派 tool_use 也不续轮
+            if not tooluse:
                 break
 
             tool_results: list = []
@@ -722,10 +770,27 @@ class AnthropicAgent:
                     "content": result if isinstance(result, str) else json.dumps(result, ensure_ascii=False),
                 })
 
-            work_history.append({"role": "user", "content": tool_results})
+            if addhistory:
+                work_history.append({"role": "user", "content": tool_results})
 
         last = work_history[-1].get("content", []) if work_history else []
         return "".join(b.get("text", "") for b in last if b.get("type") == "text")
+
+    @_auto_save_async
+    async def aconversation_with_tool(self, messages=None, tool: bool = False, images=None):
+        """**Deprecated** since v1.3.0; use :meth:`aconversation` instead.
+
+        行为等价于 ``await self.aconversation(messages, tooluse=True, addhistory=True, images=images)``。
+        """
+        _warnings.warn(
+            "aconversation_with_tool is deprecated since v1.3.0; "
+            "use aconversation(tooluse=True, addhistory=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.aconversation(
+            messages=messages, tooluse=True, addhistory=True, images=images,
+        )
 
     def _build_user_message(self, messages, images) -> dict:
         """把用户输入规范成 Anthropic user message"""
@@ -867,7 +932,7 @@ class AnthropicAgent:
             queue = get_default_queue()
             return queue.submit(
                 target_uuid=target.uuid,
-                call_fn=lambda: str(target.conversation_with_tool(message)),
+                call_fn=lambda: str(target.conversation(message)),
                 caller_chain=chain,
             )
         except Exception as e:

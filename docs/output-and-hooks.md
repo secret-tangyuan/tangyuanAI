@@ -98,13 +98,13 @@ class MyAgent(tangyuanAI.Agent):
             logger.error(f"[{task_id}] {tool_name} 失败：{tool_result}")
 ```
 
-钩子在所有协议（`protocol = "openai" | "anthropic" | "openai-responses"`）的同步+异步两条对话路径都生效（`conversation_with_tool` / `aconversation_with_tool`）。
+钩子在所有协议（`protocol = "openai" | "anthropic" | "openai-responses"`）的同步+异步两条对话路径都生效（`conversation` / `aconversation`）。
 
 ## 关键修复历史
 
 | 版本 | 修复 |
 |---|---|
-| v0.3.0 | `AnthropicAgent.conversation_with_tool(stream=False)` 丢字（text 只入 `full_text` 不进 `assistant_blocks`） |
-| v0.3.0 | `BaseAgent.conversation_with_tool` 同步多轮吞掉 LLM 最终回复（`if tool: return work_history[-1]` 错把 tool_result 当答案） |
+| v0.3.0 | `AnthropicAgent.conversation(stream=False)` 丢字（text 只入 `full_text` 不进 `assistant_blocks`） |
+| v0.3.0 | `BaseAgent.conversation` 同步多轮吞掉 LLM 最终回复（`if tool: return work_history[-1]` 错把 tool_result 当答案） |
 | v0.3.1 | 上面两个 bug 都修了；`AnthropicAgent` 内部 `self.out({...})` 全部切到 `self.pack(...)` |
 | v1.1.1-rc1 | `Agent.out` 优先打印 `tool_result`（之前会被 `tool_name` 分支吞掉） |

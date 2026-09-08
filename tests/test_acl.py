@@ -220,7 +220,7 @@ def test_user_asks_agent_to_run_admin_only_tool_agent_denies():
             "抱歉，我没有权限执行删库操作。",
         ))
 
-        out = agent.conversation_with_tool("请帮我删库")
+        out = agent.conversation("请帮我删库")
         # 关键断言：delete_database 的实际内容"数据库已删除"绝不能出现
         assert "数据库已删除" not in out
         # LLM 道歉了
@@ -255,7 +255,7 @@ def test_user_asks_agent_to_call_own_tool_succeeds():
         ))
         state.queue(lambda _b: anthropic_text_response("文件内容：contents of /tmp/x.txt"))
 
-        out = agent.conversation_with_tool("读 /tmp/x.txt")
+        out = agent.conversation("读 /tmp/x.txt")
         assert "contents of /tmp/x.txt" in out
     finally:
         server.shutdown()

@@ -86,7 +86,7 @@ def test_concurrent_conversations_on_same_agent_dont_cross_contaminate():
 
         def worker(idx):
             try:
-                out = agent.conversation_with_tool(f"user-{idx}")
+                out = agent.conversation(f"user-{idx}")
                 results.append((idx, out))
             except Exception as e:
                 errors.append((idx, str(e)))

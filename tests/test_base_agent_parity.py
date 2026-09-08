@@ -109,7 +109,7 @@ def test_openai_non_stream_pure_text(openai_state):
     _register_echo("oa")
 
     state.queue(lambda _body: openai_text_response("hi from openai"))
-    out = agent.conversation_with_tool("hello")
+    out = agent.conversation("hello")
     assert out == "hi from openai"
     assert state.real_call_count == 1
 
@@ -120,7 +120,7 @@ def test_openai_stream_pure_text(openai_state):
     _register_echo("oa")
 
     state.queue(lambda _body: openai_text_response("stream openai"))
-    out = agent.conversation_with_tool("hello")
+    out = agent.conversation("hello")
     assert out == "stream openai"
 
 
@@ -133,7 +133,7 @@ def test_openai_tool_call_then_text(openai_state):
         "call_1", "echo", {"text": "yo"},
     ))
     state.queue(lambda _body: openai_text_response("finished"))
-    out = agent.conversation_with_tool("call tool")
+    out = agent.conversation("call tool")
     assert out == "finished"
     assert state.real_call_count == 2
 

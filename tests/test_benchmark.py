@@ -113,7 +113,7 @@ def test_bench_anthropic_pure_text_throughput(anthropic_bench_mock):
         # 每轮返不同文本
         state.queue(lambda _b, i=i: anthropic_text_response(f"reply {i}"))
         start = time.perf_counter()
-        out = agent.conversation_with_tool(f"hi {i}")
+        out = agent.conversation(f"hi {i}")
         elapsed_ms = (time.perf_counter() - start) * 1000
         assert out == f"reply {i}"
         samples.append(elapsed_ms)
@@ -150,7 +150,7 @@ def test_bench_anthropic_tool_call_latency(anthropic_bench_mock):
         state.queue(lambda _b, i=i: anthropic_tool_use_response(f"t{i}", "echo", {"text": f"msg{i}"}))
         state.queue(lambda _b, i=i: anthropic_text_response(f"done {i}"))
         start = time.perf_counter()
-        out = agent.conversation_with_tool(f"ask {i}")
+        out = agent.conversation(f"ask {i}")
         elapsed_ms = (time.perf_counter() - start) * 1000
         assert f"done {i}" in out
         samples.append(elapsed_ms)

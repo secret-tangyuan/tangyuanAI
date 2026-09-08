@@ -7,6 +7,35 @@ tangyuanAI 的所有显著变更记录。
 
 ## [Unreleased]
 
+### Added
+- **`conversation` / `aconversation` 新主入口 + `tooluse` / `addhistory` 参数**
+  - `agent.conversation(messages, *, tooluse=True, addhistory=True, images=None)` —— 替代 `conversation_with_tool` 的统一对话入口
+  - `agent.aconversation(...)` —— 异步版
+  - `tooluse=True`（默认）：是否派发 tools schema + 是否允许 FC 递归；`False` 时关闭 tool 能力
+  - `addhistory=True`（默认）：是否把 user / assistant / tool_result 写入 `agent.history`；`False` 时实现"不计入对话"的一次性 AI 调用（分类 / 路由 / 上下文增强）
+  - 新测试 `tests/test_conversation.py`（9 项）覆盖默认行为、`addhistory=False`、 `tooluse=False`、async 版、alias 兼容性
+
+### Changed
+- **内部 `tool` 标记合并进 `addhistory` 语义**：旧 `tool=True` 的"FC 续轮"标志不再外露；新的内部 FC 续轮直接调 `self.conversation()`（默认参数），更直观。
+- 文档 / examples / 内部 `ask_for_help` 全部切到新名 `conversation`
+
+### Deprecated
+- **`conversation_with_tool` / `aconversation_with_tool` 软重命名**：保留为 deprecated alias，调时打 `DeprecationWarning`。
+  - 内部 `a2a_client.A2AAgentProxy` 同款保留 alias
+  - **计划 v2.0 移除**（v1.3.0 起 deprecate）
+
+### Migration
+```python
+# 旧
+agent.conversation_with_tool("hi", tool=True)
+
+# 新（默认行为等价）
+agent.conversation("hi")
+
+# 新（一次性 AI 调用，不入历史）
+agent.conversation("分类这段文本", tooluse=False, addhistory=False)
+```
+
 ## [1.1.1] - 2026-08-15
 
 > 完整代码审查 + bug fixes + 兼容外部 Plugin 协议（OpenAI ChatGPT Plugin 1.0 + Anthropic Claude Code Plugin）。

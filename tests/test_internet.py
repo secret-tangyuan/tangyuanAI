@@ -136,7 +136,7 @@ async def test_user_asks_weather_agent_uses_async_stream():
         ))
         state.queue(lambda _b: openai_text_response("北京今天晴 25°C，适合出门。"))
 
-        out = await agent.aconversation_with_tool("北京天气怎么样？")
+        out = await agent.aconversation("北京天气怎么样？")
         assert "北京" in out
         assert state.real_call_count == 2
     finally:
@@ -172,7 +172,7 @@ async def test_user_asks_inventory_check_via_async():
             "ABC-001 还有 42 件库存。",
         ))
 
-        out = await agent.aconversation_with_tool("ABC-001 库存多少？")
+        out = await agent.aconversation("ABC-001 库存多少？")
         assert "42" in out
     finally:
         server.shutdown()
@@ -198,7 +198,7 @@ def test_user_says_finish_agent_marks_task_complete_and_exits():
         # 第二轮：LLM 拿 attempt_completion 结果后再回应一次
         state.queue(lambda _b: anthropic_text_response("好的，任务完成。"))
 
-        out = agent.conversation_with_tool("做完了，给我最终汇报")
+        out = agent.conversation("做完了，给我最终汇报")
         # attempt_completion 把 report_content 喂回 LLM，最终 LLM 拿这个生成"好的，任务完成。"
         assert "好的" in out or "任务完成" in out
     finally:
@@ -269,7 +269,7 @@ def test_user_request_when_tool_raises_runtime_error_agent_recovers():
         state.queue(lambda _b: anthropic_tool_use_response("t1", "flaky", {}))
         state.queue(lambda _b: anthropic_text_response("服务出错了，抱歉"))
 
-        out = agent.conversation_with_tool("帮我跑一下")
+        out = agent.conversation("帮我跑一下")
         assert "服务出错" in out or "抱歉" in out
         assert state.real_call_count == 2
     finally:
@@ -312,7 +312,7 @@ def test_orchestrator_asks_researcher_via_ask_for_help_queue():
         # 单步验证：直接调 researcher.conversation_with_tool → mock 返回调研结果
         state.queue(lambda _b: anthropic_text_response("RAG 优化的关键：分块策略 + embedding 选型"))
 
-        out = researcher.conversation_with_tool("查一下 RAG 优化")
+        out = researcher.conversation("查一下 RAG 优化")
         assert "RAG" in out
         # 验证 researcher.history 里有用户消息（content 可能是 list 或 str）
         def _content_to_str(c):
@@ -403,13 +403,13 @@ def test_user_calls_same_agent_twice_serial():
         # 第一次
         state.queue(lambda _b: anthropic_tool_use_response("c1", "echo", {"text": "first"}))
         state.queue(lambda _b: anthropic_text_response("first done"))
-        out1 = agent.conversation_with_tool("first")
+        out1 = agent.conversation("first")
         assert "first done" in out1
 
         # 第二次
         state.queue(lambda _b: anthropic_tool_use_response("c2", "echo", {"text": "second"}))
         state.queue(lambda _b: anthropic_text_response("second done"))
-        out2 = agent.conversation_with_tool("second")
+        out2 = agent.conversation("second")
         assert "second done" in out2
 
         # history 累积
@@ -454,7 +454,7 @@ def test_user_runs_slow_data_migration_agent_does_not_block():
         state.queue(lambda _b: anthropic_text_response("已转后台，稍后查 task_id"))
 
         start = _time.time()
-        out = agent.conversation_with_tool("跑数据迁移")
+        out = agent.conversation("跑数据迁移")
         elapsed = _time.time() - start
 
         # 关键：< 6 秒（没阻塞 2 秒）。慢 CI 上 mock 串行 + transport 开销可能吃掉 1-4 秒。
@@ -485,7 +485,7 @@ def test_user_runs_fast_task_agent_returns_result_immediately():
         state.queue(lambda _b: anthropic_tool_use_response("t1", "quick_check", {}))
         state.queue(lambda _b: anthropic_text_response("检查通过"))
 
-        out = agent.conversation_with_tool("跑快速检查")
+        out = agent.conversation("跑快速检查")
         assert "检查通过" in out
     finally:
         server.shutdown()

@@ -122,7 +122,7 @@ class TestExporter:
         class FakeAgent:
             name = "writer"
             description = "写作 agent"
-            def conversation_with_tool(self, prompt, **kw):
+            def conversation(self, prompt, **kw):
                 return f"写好了: {prompt}"
 
         return FakeAgent()

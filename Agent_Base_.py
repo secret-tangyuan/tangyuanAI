@@ -250,18 +250,27 @@ class Agent():
 
     # ---------------- 主对话函数 ----------------
     @_auto_save
-    def conversation_with_tool(self, messages=None, tool: bool = False, images=None):
+    def conversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+    ):
         """
         进行对话，支持多模态输入（文本 + 图片）
 
         Args:
             messages: 文本消息
-            tool: 是否是工具调用后的继续对话
+            tooluse: 是否派发 tools schema + 是否允许 FC 续轮。默认 ``True``。
+            addhistory: 是否把 user / assistant / tool_result 写入 history。
+                设 ``False`` 可做"不计入对话"的一次性 AI 调用。
             images: 图片列表，可以是 base64 字符串或图片 URL
         """
         work_history = self.history
 
-        if messages:
+        if addhistory and messages:
             # 如果有图片，构建多模态内容
             if images:
                 content_list = [{"type": "text", "text": messages}]
@@ -281,7 +290,7 @@ class Agent():
             else:
                 work_history.append({"role": "user", "content": messages})
 
-        if self.fc_model:
+        if self.fc_model and tooluse:
             # Function Calling 模式
             tools_schema = list(tool_registry.get_all_tools_schema(self.uuid))
             for s in tool_registry.collect_builtin_tools(self):
@@ -376,11 +385,12 @@ class Agent():
         logger.trace(f"AI 回复内容长度：{len(full_content)}")
 
         # Function Calling: 执行工具调用
-        if self.fc_model and tool_calls_list:
+        if tooluse and self.fc_model and tool_calls_list:
             logger.debug(f"发现 Function Calling 工具调用: {tool_calls_list}")
 
             # 添加 assistant message with tool_calls
-            work_history.append({
+            if addhistory:
+                work_history.append({
                 "role": "assistant",
                 "content": None,
                 "tool_calls": tool_calls_list
@@ -457,16 +467,17 @@ class Agent():
 
             # 添加 tool responses 到历史
             for result in tool_results:
-                work_history.append({
-                    "role": "tool",
-                    "tool_call_id": result['tool_call_id'],
-                    "name": result['name'],
-                    "content": result['content']
-                })
+                if addhistory:
+                    work_history.append({
+                        "role": "tool",
+                        "tool_call_id": result['tool_call_id'],
+                        "name": result['name'],
+                        "content": result['content']
+                    })
 
             # 继续对话（无熔断；只受 attempt_completion / 用户主动结束影响）
             logger.debug("工具执行完成，继续对话")
-            return self.conversation_with_tool(tool=True)
+            return self.conversation()
 
         # XML 模式：提取并执行工具
         xml_pattern = re.compile(r'<(\w+)>.*?</\1>', flags=re.S)
@@ -567,36 +578,67 @@ class Agent():
             n = 0
             for i in tool_results:
                 try:
-                    work_history.append({"role": "system", "content": f"{tool_names[n]} results: {i}"})
+                    if addhistory:
+                        work_history.append({"role": "system", "content": f"{tool_names[n]} results: {i}"})
                     n += 1
                 except Exception:
                     break
             logger.debug(f"对话历史长度：{len(self.history)}")
-            return self.conversation_with_tool(tool=True)
-        # 递归到这（tool=True 路径）：本轮 LLM 已回应过，无新工具触发，
+            return self.conversation()
+        # 递归到这（addhistory=True 默认路径）：本轮 LLM 已回应过，无新工具触发，
         # LLM 的回复 full_content 就是最终答案；不是 work_history[-1]（那是上轮 tool_result）。
         # v0.3.1 之前这里错把 work_history[-1] 当答案返回，导致多轮工具调用后
         # 同步路径直接吐出 tool_result，丢 LLM 的最终文本。
         return full_content
 
-    @_auto_save_async
-    async def aconversation_with_tool(self, messages=None, tool: bool = False, images=None):
+    @_auto_save
+    def conversation_with_tool(self, messages=None, tool: bool = False, images=None):
+        """**Deprecated** since v1.3.0; use :meth:`conversation` instead.
+
+        行为等价于 ``self.conversation(messages, tooluse=True, addhistory=True, images=images)``。
         """
-        异步版 conversation_with_tool（基于 transport.achat_stream）。
+        _warnings.warn(
+            "conversation_with_tool is deprecated since v1.3.0; "
+            "use conversation(tooluse=True, addhistory=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.conversation(
+            messages=messages, tooluse=True, addhistory=True, images=images,
+        )
+
+    @_auto_save_async
+    async def aconversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+    ):
+        """
+        异步版 conversation（基于 transport.achat_stream）。
 
         用法::
 
             import asyncio
-            result = asyncio.run(agent.aconversation_with_tool("hi"))
+            result = asyncio.run(agent.aconversation("hi"))
 
         注意：tool_runner 仍是 ThreadPoolExecutor（同步执行工具），但
         LLM 调用走 async，事件循环不被阻塞。
+
+        Args:
+            messages: 字符串、消息 dict、消息 list
+            tooluse  : 是否派发 tools schema + 是否允许 FC 续轮。默认 ``True``。
+            addhistory: 是否把 user / assistant / tool_result 写入 history。
+                设 ``False`` 可做"不计入对话"的一次性 AI 调用。
+            images  : 图片 URL 或 base64
         """
         from .llm_transport import ChatRequest, HttpxOpenAITransport
 
         work_history = self.history
 
-        if not tool and messages is not None:
+        if addhistory and messages is not None:
             if images:
                 content_list = [{"type": "text", "text": messages}]
                 for img in images:
@@ -614,7 +656,7 @@ class Agent():
             else:
                 work_history.append({"role": "user", "content": messages})
 
-        if self.fc_model:
+        if self.fc_model and tooluse:
             tools_schema = list(tool_registry.get_all_tools_schema(self.uuid))
             for s in tool_registry.collect_builtin_tools(self):
                 tools_schema.append(s)
@@ -694,12 +736,13 @@ class Agent():
                 )
 
         # FC 模式：执行 tool calls
-        if self.fc_model and tool_calls_list:
-            work_history.append({
-                "role": "assistant",
-                "content": None,
-                "tool_calls": tool_calls_list,
-            })
+        if tooluse and self.fc_model and tool_calls_list:
+            if addhistory:
+                work_history.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": tool_calls_list,
+                })
             tool_results: list = []
             for tool_call in tool_calls_list:
                 tool_name = tool_call["function"]["name"]
@@ -739,15 +782,32 @@ class Agent():
                         "content": error_msg,
                     })
             for result in tool_results:
-                work_history.append({
-                    "role": "tool",
-                    "tool_call_id": result["tool_call_id"],
-                    "name": result["name"],
-                    "content": result["content"],
-                })
-            return await self.aconversation_with_tool(tool=True)
+                if addhistory:
+                    work_history.append({
+                        "role": "tool",
+                        "tool_call_id": result["tool_call_id"],
+                        "name": result["name"],
+                        "content": result["content"],
+                    })
+            return await self.aconversation()
 
         return full_content
+
+    @_auto_save_async
+    async def aconversation_with_tool(self, messages=None, tool: bool = False, images=None):
+        """**Deprecated** since v1.3.0; use :meth:`aconversation` instead.
+
+        行为等价于 ``await self.aconversation(messages, tooluse=True, addhistory=True, images=images)``。
+        """
+        _warnings.warn(
+            "aconversation_with_tool is deprecated since v1.3.0; "
+            "use aconversation(tooluse=True, addhistory=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.aconversation(
+            messages=messages, tooluse=True, addhistory=True, images=images,
+        )
 
     def _resolve_tool(self, name: str):
         """解析 tool 名字到实际 callable"""
@@ -873,7 +933,7 @@ class Agent():
             queue = get_default_queue()
             return queue.submit(
                 target_uuid=target.uuid,
-                call_fn=lambda: str(target.conversation_with_tool(message)),
+                call_fn=lambda: str(target.conversation(message)),
                 caller_chain=chain,
             )
         except Exception as e:

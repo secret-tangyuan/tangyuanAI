@@ -44,4 +44,4 @@ if __name__ == "__main__":
     agent = tangyuanAI.agent_list["custom_agent"]
 
     print("=== 自定义输出示例 ===")
-    agent.conversation_with_tool("你好，请用你的方式回答")
+    agent.conversation("你好，请用你的方式回答")

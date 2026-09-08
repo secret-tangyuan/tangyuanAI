@@ -470,7 +470,7 @@ def cmd_demo(_args: argparse.Namespace) -> int:
     print("\n  → 接下来你可以：")
     print("      import tangyuanAI（pip 默认安装名）")
     print("      agent = agent_list['demo_agent']")
-    print("      agent.conversation_with_tool('hi')")
+    print("      agent.conversation('hi')")
     return 0
 
 

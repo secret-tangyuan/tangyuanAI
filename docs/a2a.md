@@ -37,7 +37,7 @@ result = t.agent_list["scheduling_agent"].ask_for_help(
 )
 
 # 3. 或直接调 proxy
-reply = proxy.conversation_with_tool("帮我查一下天气")
+reply = proxy.conversation("帮我查一下天气")
 ```
 
 ### 来源跟踪
@@ -105,5 +105,5 @@ curl -X POST http://127.0.0.1:9000/a2a/v1/tasks/send \
 ## 与 ask_for_help 的关系
 
 本地 agent 用 `ask_for_help` 调任何 agent_list 里的 agent——包括 A2A 导入的代理。
-`A2AAgentProxy` 长得像普通 agent（有 name / description / conversation_with_tool），
+`A2AAgentProxy` 长得像普通 agent（有 name / description / conversation），
 底层把消息转发到远端 A2A 端点。对调度 agent 来说，本地 / 远端是透明的。

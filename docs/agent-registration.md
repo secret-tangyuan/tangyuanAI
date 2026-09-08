@@ -61,7 +61,7 @@ activate_template("my_agent")
 Agent 自带 `activate_template(name)` / `deactivate_template(name)` / `list_templates(name="")` 三个 builtin_tool，LLM 可以在对话中根据需要动态管理模板池。
 
 ```python
-agent.conversation_with_tool("需要写文章的 Agent，先把 'writer' 模板激活")
+agent.conversation("需要写文章的 Agent，先把 'writer' 模板激活")
 ```
 
 ## 旧写法（v0.3.0 起已弃用；`BaseAgent` / `AnthropicAgent` 直继承计划 v1.3.0 删除）

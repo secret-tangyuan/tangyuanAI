@@ -190,8 +190,8 @@ def configure(
     """配置全局自动持久化。
 
     在程序启动早期（import tangyuanAI 之后、第一次 conversation 之前）调用一次，
-    之后所有 agent 的 ``conversation_with_tool`` / ``aconversation_with_tool``
-    调用都会在返回时自动保存当前状态。
+    之后所有 agent 的 ``conversation`` / ``aconversation`` 调用都会在返回时自动保存当前状态
+    （旧名 ``conversation_with_tool`` / ``aconversation_with_tool`` 作为 deprecated alias 同样适用）。
 
     Args:
         enabled: True 启用自动保存；False 关闭；None 表示不动
@@ -265,7 +265,8 @@ def _read_env_config() -> None:
 
 
 def auto_save(agent: Any) -> bool:
-    """conversation_with_tool 退出时自动调用。返回 True 表示已保存，False 表示跳过。
+    """``conversation`` / ``aconversation`` 退出时自动调用（v1.3.0 之前的旧名为 ``conversation_with_tool``）。
+    返回 True 表示已保存，False 表示跳过。
 
     跳过条件：
 
@@ -295,15 +296,17 @@ def auto_save(agent: Any) -> bool:
 
 
 # ============================================================================
-# Decorators: 包 conversation_with_tool / aconversation_with_tool
+# Decorators: 包 conversation / aconversation（旧名 conversation_with_tool）
 # ============================================================================
 #
 # 用 ``_conv_depth`` 计数器跟踪对话嵌套层数：
 # - 外层调用：depth 0 → 1
-# - 递归调用（如 BaseAgent FC 模式的 ``self.conversation_with_tool(tool=True)``）：
+# - 递归调用（如 BaseAgent FC 模式的 ``self.conversation()`` 续轮）：
 #   depth 1 → 2 → 1（无 auto_save）
 # - 最外层退出：depth 1 → 0 → 触发 auto_save(self)
-# 这样保证每个 ``conversation_with_tool`` 调用只自动保存 1 次（不重复）。
+# 这样保证每个 ``conversation`` 调用只自动保存 1 次（不重复）。
+# 装饰的是函数对象本身，与方法名无关，所以 ``conversation`` 和 deprecated alias
+# ``conversation_with_tool`` 都打上装饰器后会共享同一个 depth 计数器。
 
 def _auto_save(method: Callable) -> Callable:
     @functools.wraps(method)

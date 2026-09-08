@@ -43,7 +43,7 @@ export TANGYUAN_PERSISTENCE_DIR=./sessions
 ```python
 # 程序里什么都不用写
 import tangyuanAI
-# ... 之后的 agent.conversation_with_tool(...) 每次返回都会自动保存到 ./sessions/{uuid}.tas
+# ... 之后的 agent.conversation(...) 每次返回都会自动保存到 ./sessions/{uuid}.tas
 ```
 
 ### 3. 编程配置：运行时改 backend / 关闭
@@ -221,7 +221,7 @@ tangyuanAI.save_state(agent, "k1")  # hooks = ["my.module:my_hook"]
 ## 实时保存（自动）
 
 `@_auto_save` / `@_auto_save_async` 装饰器包了 `BaseAgent` / `AnthropicAgent` 的
-`conversation_with_tool` / `aconversation_with_tool`。最外层调用退出时自动保存
+`conversation` / `aconversation`。最外层调用退出时自动保存
 一次，递归调用（如 FC 模式的多轮工具调用）不重复保存——通过 `_conv_depth` 计数
 器保证。
 
@@ -284,7 +284,7 @@ Agent.load_state(key, backend=None)   # classmethod；调 load_state(...)
 - 插件注册 / 重复注册 / 未知 backend
 - 类身份解析：成功 / 降级到 agent_list / 失败抛错
 - 自动保存：默认关闭 / configure 启用 / env var 启用
-- 装饰器：conversation_with_tool 退出时保存 / async / 递归不重复保存
+- 装饰器：conversation 退出时保存 / async / 递归不重复保存
 - key_strategy 切换 / 持久化失败不阻塞对话
 - INI parser 边界
 - schema_version 自动从 `tangyuanAI.__version__` 读
