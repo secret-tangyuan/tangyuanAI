@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid as _uuid
-import warnings
 
 import pytest
 from _llm_mock import (
@@ -25,14 +24,12 @@ from _llm_mock import (
 )
 from tangyuanAI import (
     Agent,
-    BaseAgent,
     activate_template,
     agent_list,
     template_agent,
     tool_registry,
 )
 from tangyuanAI.Agent_list import agent_template_pool
-
 
 # ---------------------------------------------------------------------------
 # fixtures
