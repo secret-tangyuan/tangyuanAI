@@ -16,13 +16,13 @@ tangyuanAI 支持把图片传给 LLM（OpenAI Chat Completions / Anthropic Messa
 
 ```python
 # 裸 base64（自动推断 media_type）
-agent.conversation_with_tool(
+agent.conversation(
     "这张图片里有什么？",
     images=[base64.b64encode(jpeg_bytes).decode("ascii")],
 )
 
 # 显式 media_type（覆盖推断）
-agent.conversation_with_tool(
+agent.conversation(
     "这张图片里有什么？",
     images=[{"data": b64, "media_type": "image/jpeg"}],
 )
@@ -33,13 +33,13 @@ agent.conversation_with_tool(
 字符串以 `http://` / `https://` 起头时自动识别为 URL。URL ≤ 8192 字符，图片 ≤ 32 MiB，60 秒内下载完成。
 
 ```python
-agent.conversation_with_tool(
+agent.conversation(
     "描述这张图片",
     images=["https://example.com/image.jpg"],
 )
 
 # 带 detail 字段（仅 URL/base64 有效）
-agent.conversation_with_tool(
+agent.conversation(
     "粗略描述",
     images=[{"url": "https://example.com/image.jpg", "detail": "low"}],
 )
@@ -50,7 +50,7 @@ agent.conversation_with_tool(
 通过 Files API 上传一次图片，后续用 `file_id` 引用。受 64 MiB 单图上限保护，不受 32 MiB 内联限制。
 
 ```python
-agent.conversation_with_tool(
+agent.conversation(
     "这张图片里有什么？",
     images=[{"file_id": "file-api-xxxxxxxxxxxxxxxx"}],
 )
@@ -122,15 +122,15 @@ agent = Agent(
 )
 
 # URL
-agent.conversation_with_tool("图里有几只猫？", images=["https://.../cats.jpg"])
+agent.conversation("图里有几只猫？", images=["https://.../cats.jpg"])
 
 # 内联 base64
 with open("local.png", "rb") as f:
     b64 = base64.b64encode(f.read()).decode("ascii")
-agent.conversation_with_tool("描述这张图", images=[b64])
+agent.conversation("描述这张图", images=[b64])
 
 # Files API
-agent.conversation_with_tool(
+agent.conversation(
     "这张图里有什么？",
     images=[{"file_id": "file-api-xxxxxxxxxxxxxxxx"}],
 )

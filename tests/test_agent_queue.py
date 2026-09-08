@@ -15,7 +15,7 @@ from tangyuanAI.agent_queue import AgentQueue, get_call_chain
 
 
 class _StubAgent:
-    """一个轻量 stub，模拟 Agent.conversation_with_tool 的同步行为"""
+    """一个轻量 stub，模拟 Agent.conversation 的同步行为"""
 
     def __init__(self, uuid, *, raises: Exception | None = None, sleep: float = 0):
         self.uuid = uuid
@@ -24,7 +24,7 @@ class _StubAgent:
         self._sleep = sleep
         self.calls = 0
 
-    def conversation_with_tool(self, message: str) -> str:
+    def conversation(self, message: str) -> str:
         self.calls += 1
         if self._sleep:
             time.sleep(self._sleep)
@@ -38,7 +38,7 @@ def test_basic_submit_runs_call_fn_and_returns_result():
     a = _StubAgent("u-aaa")
     try:
         result = q.submit(target_uuid="u-aaa",
-                          call_fn=lambda: a.conversation_with_tool("hi"))
+                          call_fn=lambda: a.conversation("hi"))
     finally:
         q.shutdown(timeout=3)
 
@@ -109,7 +109,7 @@ def test_cycle_rejected():
     a = _StubAgent("u-aaa")
     result = q.submit(
         target_uuid="u-aaa",
-        call_fn=lambda: a.conversation_with_tool("x"),
+        call_fn=lambda: a.conversation("x"),
         caller_chain=["u-aaa", "u-bbb"],
     )
     q.shutdown(timeout=3)
@@ -122,7 +122,7 @@ def test_max_depth_rejected():
     a = _StubAgent("u-zzz")
     result = q.submit(
         target_uuid="u-zzz",
-        call_fn=lambda: a.conversation_with_tool("x"),
+        call_fn=lambda: a.conversation("x"),
         caller_chain=["a", "b", "c"],  # 长度 3 == max_depth
     )
     q.shutdown(timeout=3)
@@ -135,7 +135,7 @@ def test_call_fn_exception_returns_error_string():
     a = _StubAgent("u-aaa", raises=RuntimeError("boom"))
     result = q.submit(
         target_uuid="u-aaa",
-        call_fn=lambda: a.conversation_with_tool("x"),
+        call_fn=lambda: a.conversation("x"),
     )
     q.shutdown(timeout=3)
     assert "调用失败" in result
@@ -155,13 +155,13 @@ def test_two_workers_run_in_parallel():
         def t1():
             results["a"] = q.submit(
                 target_uuid="u-aaa",
-                call_fn=lambda: a.conversation_with_tool("x"),
+                call_fn=lambda: a.conversation("x"),
             )
 
         def t2():
             results["b"] = q.submit(
                 target_uuid="u-bbb",
-                call_fn=lambda: b.conversation_with_tool("y"),
+                call_fn=lambda: b.conversation("y"),
             )
 
         th1 = threading.Thread(target=t1)

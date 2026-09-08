@@ -74,8 +74,8 @@ if __name__ == "__main__":
 
     # 测试加法
     print("\n[测试加法]")
-    agent.conversation_with_tool("请帮我计算 123 + 456")
+    agent.conversation("请帮我计算 123 + 456")
 
     # 测试乘法
     print("\n[测试乘法]")
-    agent.conversation_with_tool("请帮我计算 12 × 34")
+    agent.conversation("请帮我计算 12 × 34")

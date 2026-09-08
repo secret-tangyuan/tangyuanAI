@@ -148,7 +148,7 @@ class A2AExporter:
             raise KeyError(f"agent 不存在: {agent_name}")
 
         agent = agents[agent_name]
-        reply = agent.conversation_with_tool(text)
+        reply = agent.conversation(text)
 
         import uuid as _uuid
         task_id = _uuid.uuid4().hex

@@ -56,7 +56,7 @@ if __name__ == "__main__":
     scheduler = tangyuanAI.agent_list["scheduling_agent"]
 
     # 请求调度 Agent 查询时间（它会向 time_agent 求助）
-    scheduler.conversation_with_tool(
+    scheduler.conversation(
         "你好，请请求 time_agent 帮你查看当前时间"
     )
 

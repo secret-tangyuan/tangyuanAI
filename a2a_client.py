@@ -19,6 +19,7 @@ A2A Client（kb/a2a_client.py）
 from __future__ import annotations
 
 import asyncio
+import warnings
 from typing import Any, Optional
 
 from tangyuanAI.http_utils import AsyncHTTPClient
@@ -130,17 +131,40 @@ class A2AAgentProxy:
         self.skills = skills or []
         self.source = f"a2a:{url}"
 
-    def conversation_with_tool(self, prompt: str, **kwargs) -> str:
-        """同步调远端 A2A agent。返回远端回复文本。"""
+    def conversation(self, prompt: str, **kwargs) -> str:
+        """同步调远端 A2A agent。返回远端回复文本。
+
+        ``**kwargs`` 仅用于将来扩展（``addhistory`` / ``tooluse`` 对远端无意义，本地代理默认忽略）。
+        """
         from .a2a_protocol import extract_text_from_artifacts
         result = send_task_sync(self.url, prompt)
         return extract_text_from_artifacts(result.get("artifacts", []))
 
-    async def aconversation_with_tool(self, prompt: str, **kwargs) -> str:
+    def conversation_with_tool(self, prompt: str, **kwargs) -> str:
+        """**Deprecated** since v1.3.0; use :meth:`conversation` instead."""
+        warnings.warn(
+            "conversation_with_tool is deprecated since v1.3.0; "
+            "use conversation(...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.conversation(prompt, **kwargs)
+
+    async def aconversation(self, prompt: str, **kwargs) -> str:
         """异步调远端 A2A agent。"""
         from .a2a_protocol import extract_text_from_artifacts
         result = await send_task(self.url, prompt)
         return extract_text_from_artifacts(result.get("artifacts", []))
+
+    async def aconversation_with_tool(self, prompt: str, **kwargs) -> str:
+        """**Deprecated** since v1.3.0; use :meth:`aconversation` instead."""
+        warnings.warn(
+            "aconversation_with_tool is deprecated since v1.3.0; "
+            "use aconversation(...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.aconversation(prompt, **kwargs)
 
     def __repr__(self) -> str:
         return f"A2AAgentProxy(name={self.name!r}, url={self.url!r})"

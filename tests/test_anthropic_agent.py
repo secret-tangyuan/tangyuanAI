@@ -4,7 +4,7 @@ AnthropicAgent 协议层单测 —— 走 mock Anthropic HTTP server。
 
 覆盖 v0.3.1 修复 + 公开 API 对齐：
 
-- **bug 修复**：``AnthropicAgent.conversation_with_tool(stream=False)`` 不再丢字
+- **bug 修复**：``AnthropicAgent.conversation(stream=False)`` 不再丢字
   （v0.3.0 时 LLM 返回的文本只入 ``full_text``，不进 ``assistant_blocks``，导致最终 ``return ""``）
 - **回归**：``stream=True`` 路径不受影响
 - **多轮**：tool_use + tool_result + 最终 text 的对话循环能正常收尾
@@ -136,7 +136,7 @@ def test_non_stream_pure_text_returns_content(anthropic_state):
     _register_echo_tool(agent.uuid, "t")
 
     state.queue(lambda _body: anthropic_text_response("hello, world"))
-    out = agent.conversation_with_tool("hi")
+    out = agent.conversation("hi")
     assert out == "hello, world"
     assert state.real_call_count == 1
 
@@ -152,7 +152,7 @@ def test_non_stream_text_then_tool_use_returns_text(anthropic_state):
         "好的，我来 echo 一下", "toolu_1", "echo", {"text": "ping"},
     ))
     state.queue(lambda _body: anthropic_text_response("done"))
-    out = agent.conversation_with_tool("echo something")
+    out = agent.conversation("echo something")
     assert "echo:" in out or "done" in out  # 末轮 assistant 的 text
     assert state.real_call_count == 2
 
@@ -167,7 +167,7 @@ def test_non_stream_tool_use_only_no_text(anthropic_state):
         "toolu_1", "echo", {"text": "x"},
     ))
     state.queue(lambda _body: anthropic_text_response("all done"))
-    out = agent.conversation_with_tool("call tool")
+    out = agent.conversation("call tool")
     # 第一轮没 text 块，第二轮 text 返回；最终 return 是末轮 text
     assert out == "all done"
     assert state.real_call_count == 2
@@ -183,7 +183,7 @@ def test_stream_pure_text_returns_content(anthropic_state):
     _register_echo_tool(agent.uuid, "t")
 
     state.queue(lambda _body: anthropic_text_response("stream hello"))
-    out = agent.conversation_with_tool("hi")
+    out = agent.conversation("hi")
     assert out == "stream hello"
 
 
@@ -196,7 +196,7 @@ def test_stream_text_then_tool_use_returns_text(anthropic_state):
         "let me echo", "toolu_1", "echo", {"text": "yo"},
     ))
     state.queue(lambda _body: anthropic_text_response("wrapped up"))
-    out = agent.conversation_with_tool("echo please")
+    out = agent.conversation("echo please")
     assert out == "wrapped up"
 
 
@@ -211,7 +211,7 @@ async def test_aconversation_non_stream_pure_text(anthropic_state):
     _register_echo_tool(agent.uuid, "t")
 
     state.queue(lambda _body: anthropic_text_response("async hello"))
-    out = await agent.aconversation_with_tool("hi")
+    out = await agent.aconversation("hi")
     assert out == "async hello"
 
 
@@ -222,7 +222,7 @@ async def test_aconversation_stream_pure_text(anthropic_state):
     _register_echo_tool(agent.uuid, "t")
 
     state.queue(lambda _body: anthropic_text_response("async stream"))
-    out = await agent.aconversation_with_tool("hi")
+    out = await agent.aconversation("hi")
     assert out == "async stream"
 
 
@@ -237,7 +237,7 @@ async def test_aconversation_non_stream_text_then_tool(anthropic_state):
         "我先说", "toolu_1", "echo", {"text": "abc"},
     ))
     state.queue(lambda _body: anthropic_text_response("结束"))
-    out = await agent.aconversation_with_tool("hi")
+    out = await agent.aconversation("hi")
     assert out == "结束"
 
 
@@ -355,8 +355,10 @@ def test_base_agent_has_same_public_api_surface():
     """BaseAgent 与 AnthropicAgent 公开 API 应对齐（v0.3.1 校验）"""
     base_methods = {m for m in dir(BaseAgent) if not m.startswith("_") and callable(getattr(BaseAgent, m))}
     anth_methods = {m for m in dir(AnthropicAgent) if not m.startswith("_") and callable(getattr(AnthropicAgent, m))}
-    # 核心公开方法
-    for name in ("conversation_with_tool", "aconversation_with_tool", "out", "pack",
+    # 核心公开方法（v1.3.0 起 conversation / aconversation 是新主入口；旧名是 deprecated alias）
+    for name in ("conversation", "conversation_with_tool",
+                 "aconversation", "aconversation_with_tool",
+                 "out", "pack",
                  "ask_for_help", "list_agents", "attempt_completion", "reload",
                  "register_template", "activate_template", "deactivate_template",
                  "list_templates", "get_all_available_tools",
@@ -376,8 +378,15 @@ def test_base_agent_out_and_pack_have_annotations():
     pack_sig = inspect.signature(BaseAgent.pack)
     assert pack_sig.return_annotation == "None"
 
-    cw_sig = inspect.signature(BaseAgent.conversation_with_tool)
-    assert cw_sig.parameters["tool"].annotation == "bool"
+    # v1.3.0 起 conversation / aconversation 是主入口，参数 tooluse / addhistory 替代旧 tool 标记
+    conv_sig = inspect.signature(BaseAgent.conversation)
+    assert conv_sig.parameters["tooluse"].annotation == "bool"
+    assert conv_sig.parameters["addhistory"].annotation == "bool"
 
-    acw_sig = inspect.signature(BaseAgent.aconversation_with_tool)
-    assert acw_sig.parameters["tool"].annotation == "bool"
+    aconv_sig = inspect.signature(BaseAgent.aconversation)
+    assert aconv_sig.parameters["tooluse"].annotation == "bool"
+    assert aconv_sig.parameters["addhistory"].annotation == "bool"
+
+    # 旧名保留为 deprecated alias
+    assert hasattr(BaseAgent, "conversation_with_tool")
+    assert hasattr(BaseAgent, "aconversation_with_tool")

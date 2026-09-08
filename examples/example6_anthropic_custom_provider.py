@@ -109,4 +109,4 @@ if __name__ == "__main__":
     activate_template("proxy_agent")
     agent = tangyuanAI.agent_list["proxy_agent"]
     print(f"Agent 走 endpoint：{agent._endpoint()}")
-    # agent.conversation_with_tool("你好")
+    # agent.conversation("你好")

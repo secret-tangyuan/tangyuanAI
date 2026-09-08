@@ -164,7 +164,7 @@ class WeatherAgent(tangyuanAI.Agent):                       # 协议无关的 Ag
 if __name__ == "__main__":
     activate_template("weather")
     agent = tangyuanAI.agent_list["weather"]
-    agent.conversation_with_tool("北京今天天气怎么样？")
+    agent.conversation("北京今天天气怎么样？")
 ```
 
 切协议只改一个字段 —— 而且只改一个字段：
@@ -182,7 +182,7 @@ class ReviewerAgent(tangyuanAI.Agent):                 # 不再 import Anthropic
 
 weather   = tangyuanAI.agent_list["weather"]
 reviewer  = tangyuanAI.agent_list["reviewer"]
-reviewer.conversation_with_tool(f"刚才 {weather.name} 说北京 25°C 晴，请评审")
+reviewer.conversation(f"刚才 {weather.name} 说北京 25°C 晴，请评审")
 ```
 
 ---
@@ -337,7 +337,7 @@ def search_web(query: str) -> str:        # type=string / required=query 都是�
                 │             | "openai-responses")        │     / The code you write once
                 │  — prompt / tools / hooks / memory     │
                 └───────────────┬───────────────────────┘
-                                │ conversation_with_tool(...)
+                                │ conversation(...)
                                 │
                 ┌───────────────▼───────────────────────┐
                 │  LLMTransport (协议差异封装)           │  ← 框架提供

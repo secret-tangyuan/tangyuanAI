@@ -16,7 +16,7 @@ tangyuanAI Agent 统一实现（v0.4.2+）。
 
 设计要点（v0.4.2+ 瘦身版）：
 
-- ``_AgentCommon`` 持有**共享对话循环**（conversation_with_tool / aconversation_with_tool）
+- ``_AgentCommon`` 持有**共享对话循环**（``conversation`` / ``aconversation``；旧名 ``conversation_with_tool`` / ``aconversation_with_tool`` 已 deprecated alias）
 - 三个协议类只声明协议钩子（transport 类 / endpoint / schema 收集 / XML 模式）
 - 协议差异通过钩子注入，不再各写一份对话循环
 - ``enable_connectivity`` 类属性可关后台 ping
@@ -31,6 +31,7 @@ import re
 import threading
 import time
 import uuid as _uuid
+import warnings
 from typing import Dict, List, Optional
 
 try:
@@ -316,7 +317,7 @@ class _AgentCommon:
             queue = get_default_queue()
             return queue.submit(
                 target_uuid=target.uuid,
-                call_fn=lambda: str(target.conversation_with_tool(message)),
+                call_fn=lambda: str(target.conversation(message)),
                 caller_chain=chain,
             )
         except Exception as e:
@@ -723,14 +724,30 @@ class _AgentCommon:
         return full_content, tool_calls_list
 
     @_auto_save
-    def conversation_with_tool(self, messages=None, tool: bool = False, images=None):
-        """共享对话循环（sync）。协议差异通过钩子注入。"""
+    def conversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+    ):
+        """共享对话循环（sync）。协议差异通过钩子注入。
+
+        Args:
+            messages: 用户消息（str 或预构造 message dict）；``None`` 表示 FC 续轮。
+            tooluse: 是否把 tools schema 发给 LLM + 是否允许 FC 递归。默认 ``True``。
+            addhistory: 是否把 user 消息写入 history。默认 ``True``。
+                设 ``False`` 可做"不计入对话"的一次性 AI 调用
+                （分类 / 路由 / 上下文增强）。
+            images: 图片输入列表（URL / base64）。
+        """
         work_history = self.history
 
-        if not tool and messages:
+        if addhistory and messages:
             work_history.append(self._build_user_message(messages, images))
 
-        tools_schema = self._collect_tools_schema() if self.fc_model else []
+        tools_schema = self._collect_tools_schema() if (self.fc_model and tooluse) else []
         system_str, rest_messages = self._extract_system_and_messages(work_history)
 
         req = ChatRequest(
@@ -767,10 +784,10 @@ class _AgentCommon:
         logger.trace(f"AI 回复内容长度：{len(full_content)}")
 
         # FC 模式：执行工具 + 递归继续
-        if self.fc_model and tool_calls_list:
+        if tooluse and self.fc_model and tool_calls_list:
             self._execute_tool_calls(work_history, tool_calls_list)
             logger.debug("工具执行完成，继续对话")
-            return self.conversation_with_tool(tool=True)
+            return self.conversation()
 
         # XML 标签模式（OpenAI 特有钩子；其他协议返回 None）
         xml_result = self._handle_xml_mode(work_history, full_content)
@@ -778,15 +795,39 @@ class _AgentCommon:
             return xml_result
         return full_content
 
+    @_auto_save
+    def conversation_with_tool(self, messages=None, tool: bool = False, images=None):
+        """**Deprecated** since v1.3.0; use :meth:`conversation` instead.
+
+        行为等价于 ``self.conversation(messages, tooluse=True, addhistory=True, images=images)``。
+        ``tool`` 标记已合并进 ``addhistory`` 语义,不再需要。
+        """
+        warnings.warn(
+            "conversation_with_tool is deprecated since v1.3.0; "
+            "use conversation(tooluse=True, addhistory=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.conversation(
+            messages=messages, tooluse=True, addhistory=True, images=images,
+        )
+
     @_auto_save_async
-    async def aconversation_with_tool(self, messages=None, tool: bool = False, images=None):
+    async def aconversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+    ):
         """共享对话循环（async）。"""
         work_history = self.history
 
-        if not tool and messages:
+        if addhistory and messages:
             work_history.append(self._build_user_message(messages, images))
 
-        tools_schema = self._collect_tools_schema() if self.fc_model else []
+        tools_schema = self._collect_tools_schema() if (self.fc_model and tooluse) else []
         system_str, rest_messages = self._extract_system_and_messages(work_history)
 
         req = ChatRequest(
@@ -842,10 +883,26 @@ class _AgentCommon:
                 logger.error(f"异步非流式响应处理错误: {e}")
                 full_content = ""
 
-        if self.fc_model and tool_calls_list:
+        if tooluse and self.fc_model and tool_calls_list:
             self._execute_tool_calls(work_history, tool_calls_list)
-            return await self.aconversation_with_tool(tool=True)
+            return await self.aconversation()
         return full_content
+
+    @_auto_save_async
+    async def aconversation_with_tool(self, messages=None, tool: bool = False, images=None):
+        """**Deprecated** since v1.3.0; use :meth:`aconversation` instead.
+
+        行为等价于 ``await self.aconversation(messages, tooluse=True, addhistory=True, images=images)``。
+        """
+        warnings.warn(
+            "aconversation_with_tool is deprecated since v1.3.0; "
+            "use aconversation(tooluse=True, addhistory=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.aconversation(
+            messages=messages, tooluse=True, addhistory=True, images=images,
+        )
 
 
 # ============================================================================
@@ -963,7 +1020,7 @@ class _OpenAIBase(_AgentCommon, metaclass=_ProtocolMeta):
         if tool_results:
             for name, res in zip(tool_names, tool_results):
                 work_history.append({"role": "system", "content": f"{name} results: {res}"})
-            return self.conversation_with_tool(tool=True)
+            return self.conversation()
         return full_content
 
 
@@ -1091,11 +1148,26 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
         }
 
     @_auto_save
-    def conversation_with_tool(self, messages=None, tool: bool = False, images=None):
-        """Anthropic Messages API 同步对话。"""
+    def conversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+    ):
+        """Anthropic Messages API 同步对话。
+
+        Args:
+            messages: 用户消息（str 或预构造 message dict）；``None`` 表示 FC 续轮。
+            tooluse: 是否把 tools schema 发给 LLM + 是否允许 FC 递归。默认 ``True``。
+            addhistory: 是否把 user / assistant / tool_result 消息写入 history。
+                设 ``False`` 可做"不计入对话"的一次性 AI 调用。
+            images: 图片输入列表（URL / base64）。
+        """
         work_history = self.history
 
-        if not tool and messages:
+        if addhistory and messages:
             work_history.append(self._build_user_message(messages, images))
 
         req, transport = self._build_anthropic_request()
@@ -1116,14 +1188,40 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
             logger.error(f"{self.name} Anthropic 调用失败：{e}")
             raise
 
-        return self._finish_anthropic_round(work_history, assistant_blocks, tool_uses, full_text)
+        return self._finish_anthropic_round(
+            work_history, assistant_blocks, tool_uses, full_text,
+            tooluse=tooluse, addhistory=addhistory,
+        )
+
+    @_auto_save
+    def conversation_with_tool(self, messages=None, tool: bool = False, images=None):
+        """**Deprecated** since v1.3.0; use :meth:`conversation` instead.
+
+        行为等价于 ``self.conversation(messages, tooluse=True, addhistory=True, images=images)``。
+        """
+        warnings.warn(
+            "conversation_with_tool is deprecated since v1.3.0; "
+            "use conversation(tooluse=True, addhistory=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.conversation(
+            messages=messages, tooluse=True, addhistory=True, images=images,
+        )
 
     @_auto_save_async
-    async def aconversation_with_tool(self, messages=None, tool: bool = False, images=None):
+    async def aconversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+    ):
         """Anthropic Messages API 异步对话。"""
         work_history = self.history
 
-        if not tool and messages:
+        if addhistory and messages:
             work_history.append(self._build_user_message(messages, images))
 
         req, transport = self._build_anthropic_request()
@@ -1144,35 +1242,78 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
             logger.error(f"{self.name} Anthropic 异步调用失败：{e}")
             raise
 
-        return await self._finish_anthropic_round_async(work_history, assistant_blocks, tool_uses, full_text)
+        return await self._finish_anthropic_round_async(
+            work_history, assistant_blocks, tool_uses, full_text,
+            tooluse=tooluse, addhistory=addhistory,
+        )
 
-    def _finish_anthropic_round(self, work_history, assistant_blocks, tool_uses, full_text):
-        """sync 对话循环收尾：append assistant message → 执行 tool_uses → 递归或返回文本。"""
+    @_auto_save_async
+    async def aconversation_with_tool(self, messages=None, tool: bool = False, images=None):
+        """**Deprecated** since v1.3.0; use :meth:`aconversation` instead.
+
+        行为等价于 ``await self.aconversation(messages, tooluse=True, addhistory=True, images=images)``。
+        """
+        warnings.warn(
+            "aconversation_with_tool is deprecated since v1.3.0; "
+            "use aconversation(tooluse=True, addhistory=True) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return await self.aconversation(
+            messages=messages, tooluse=True, addhistory=True, images=images,
+        )
+
+    def _finish_anthropic_round(
+        self, work_history, assistant_blocks, tool_uses, full_text,
+        *, tooluse: bool = True, addhistory: bool = True,
+    ):
+        """sync 对话循环收尾：append assistant message → 执行 tool_uses → 递归或返回文本。
+
+        Args:
+            addhistory: 是否把 assistant message / tool_result 写入 history。
+                设 ``False`` 时整轮不留痕。
+            tooluse: 是否允许 FC 续轮。``False`` 时即使有 tool_use 也不递归。
+        """
         if self.stream and not any(b.get("type") == "text" for b in assistant_blocks) and full_text:
             assistant_blocks.append({"type": "text", "text": full_text})
 
-        work_history.append({"role": "assistant", "content": assistant_blocks})
+        if addhistory:
+            work_history.append({"role": "assistant", "content": assistant_blocks})
         if not tool_uses:
             return "".join(b.get("text", "") for b in assistant_blocks if b.get("type") == "text")
 
         tool_results = [self._execute_anthropic_tool_use(tu) for tu in tool_uses]
-        work_history.append({"role": "user", "content": tool_results})
-        return self.conversation_with_tool(tool=True)
+        if addhistory:
+            work_history.append({"role": "user", "content": tool_results})
+        if tooluse:
+            return self.conversation()
+        return "".join(
+            b.get("text", "") for b in assistant_blocks if b.get("type") == "text"
+        )
 
-    async def _finish_anthropic_round_async(self, work_history, assistant_blocks, tool_uses, full_text):
-        """async 对话循环收尾；用 await 调递归。"""
+    async def _finish_anthropic_round_async(
+        self, work_history, assistant_blocks, tool_uses, full_text,
+        *, tooluse: bool = True, addhistory: bool = True,
+    ):
+        """async 对话循环收尾；用 await 调递归。语义同 sync 版。"""
         # 非流式分支已经会把 text 推到 assistant_blocks；流式下若 blocks 没
         # 任何 text 但 full_text 非空，补一个 text block（与 sync 行为对齐）。
         if self.stream and not any(b.get("type") == "text" for b in assistant_blocks) and full_text:
             assistant_blocks.append({"type": "text", "text": full_text})
 
-        work_history.append({"role": "assistant", "content": assistant_blocks})
+        if addhistory:
+            work_history.append({"role": "assistant", "content": assistant_blocks})
         if not tool_uses:
             return "".join(b.get("text", "") for b in assistant_blocks if b.get("type") == "text")
 
         tool_results = [self._execute_anthropic_tool_use(tu) for tu in tool_uses]
-        work_history.append({"role": "user", "content": tool_results})
-        return await self.aconversation_with_tool(tool=True)
+        if addhistory:
+            work_history.append({"role": "user", "content": tool_results})
+        if tooluse:
+            return await self.aconversation()
+        return "".join(
+            b.get("text", "") for b in assistant_blocks if b.get("type") == "text"
+        )
 
 
 # ============================================================================

@@ -117,7 +117,7 @@ def test_user_builds_chatbot_with_custom_out_logger():
         ))
         state.queue(lambda _b: anthropic_text_response("北京今天晴 25°C。"))
 
-        out = agent.conversation_with_tool("北京天气？")
+        out = agent.conversation("北京天气？")
         assert "北京" in out
 
         # 4 类事件验证
@@ -173,7 +173,7 @@ def test_user_binds_out_directly_on_instance():
         state.queue(lambda _b: anthropic_text_then_tool_response("pinging", "t1", "ping", {}))
         state.queue(lambda _b: anthropic_text_response("done"))
 
-        agent.conversation_with_tool("ping")
+        agent.conversation("ping")
         assert any(e.get("tool_result") == "pong" for e in captured)
         # mock 按字符拆分流式文本（p/i/n/g/i/n/g），断言拼接后的完整消息
         joined = "".join(str(e.get("message", "")) for e in captured)
@@ -225,7 +225,7 @@ def test_user_audits_tool_calls_via_register_tool_hook():
         state.queue(lambda _b: anthropic_text_then_tool_response("searching", "t1", "lookup", {"q": "RAG"}))
         state.queue(lambda _b: anthropic_text_response("done"))
 
-        agent.conversation_with_tool("查 RAG")
+        agent.conversation("查 RAG")
         # 至少有 before + after
         assert any(e["event"] == "before" and e["tool"] == "lookup" for e in audit_log)
         assert any(e["event"] == "after" and e["tool"] == "lookup" and e["result"] == "found:RAG"
@@ -260,7 +260,7 @@ def test_user_hook_raising_does_not_block_conversation():
         state.queue(lambda _b: anthropic_text_response("ok done"))
 
         # hook 抛异常不应阻塞 conversation
-        out = agent.conversation_with_tool("run ok")
+        out = agent.conversation("run ok")
         assert "ok done" in out
     finally:
         server.shutdown()
@@ -290,7 +290,7 @@ def test_user_hook_error_event_fires_when_tool_raises():
         state.queue(lambda _b: anthropic_tool_use_response("t1", "crash", {}))
         state.queue(lambda _b: anthropic_text_response("sorry"))
 
-        agent.conversation_with_tool("run crash")
+        agent.conversation("run crash")
         # error 钩子应触发
         assert "error" in events
     finally:

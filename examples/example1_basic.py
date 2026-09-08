@@ -34,4 +34,4 @@ if __name__ == "__main__":
 
     # 开始对话
     print("=== 简单 Agent 示例 ===")
-    agent.conversation_with_tool("你好，请介绍一下你自己")
+    agent.conversation("你好，请介绍一下你自己")

@@ -36,7 +36,7 @@ chain = get_call_chain()
 queue = get_default_queue()
 result = queue.submit(
     target_uuid=target_agent.uuid,
-    call_fn=lambda: str(target_agent.conversation_with_tool(message)),
+    call_fn=lambda: str(target_agent.conversation(message)),
     caller_chain=chain,
 )
 ```

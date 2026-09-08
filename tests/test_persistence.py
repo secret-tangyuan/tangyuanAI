@@ -523,7 +523,7 @@ def test_conversation_with_tool_auto_saves_on_exit(_clean_globals, tmp_session_d
         agent._connectivity = lambda: None  # noqa: SLF001
 
         state.queue(lambda _b: anthropic_text_response("hi back"))
-        out = agent.conversation_with_tool("hello")
+        out = agent.conversation("hello")
         assert out == "hi back"
 
         # 自动保存应已触发：file 下应有 {uuid}.tas
@@ -574,7 +574,7 @@ def test_conversation_with_tool_no_auto_save_when_disabled(_clean_globals, tmp_s
         agent._connectivity = lambda: None  # noqa: SLF001
 
         state.queue(lambda _b: anthropic_text_response("hi"))
-        agent.conversation_with_tool("hello")
+        agent.conversation("hello")
         # 没启用 → 不应有文件
         assert not (tmp_session_dir / f"{uuid_str}.tas").exists()
     finally:
@@ -632,7 +632,7 @@ def test_auto_save_does_not_double_save_on_recursive_call(_clean_globals, tmp_se
         # 第一轮：tool_call；第二轮：纯文本（触发递归）
         state.queue(lambda _b: openai_tool_call_response("c1", "echo", {"text": "x"}))
         state.queue(lambda _b: openai_text_response("finished"))
-        out = agent.conversation_with_tool("start")
+        out = agent.conversation("start")
         assert out == "finished"
 
         # 只应有 1 个文件（不是 2 个）

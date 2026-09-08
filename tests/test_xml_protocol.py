@@ -111,7 +111,7 @@ def test_user_asks_agent_in_xml_mode_agent_calls_tool_via_xml_tags():
         # 第二轮 LLM 拿工具结果后给最终回答
         state.queue(lambda _b: anthropic_text_response("北京今天晴 25°C，适合出门。"))
 
-        out = agent.conversation_with_tool("北京天气？")
+        out = agent.conversation("北京天气？")
         # 最终回答里应该包含"北京"和"晴"
         assert "北京" in out
     finally:
@@ -138,7 +138,7 @@ def test_user_asks_agent_attempt_completion_via_xml_tag():
         # 第二轮 LLM 拿 attempt_completion 后再回
         state.queue(lambda _b: anthropic_text_response("好的，搞定。"))
 
-        out = agent.conversation_with_tool("任务结束")
+        out = agent.conversation("任务结束")
         assert "搞定" in out or "完成" in out
     finally:
         server.shutdown()

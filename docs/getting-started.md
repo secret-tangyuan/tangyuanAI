@@ -63,7 +63,7 @@ activate_template("weather")
 
 # 跑一次对话
 agent = tangyuanAI.agent_list["weather"]
-print(agent.conversation_with_tool("北京今天天气怎么样？"))
+print(agent.conversation("北京今天天气怎么样？"))
 ```
 
 ## 第一个 Agent（Anthropic 协议）
@@ -84,7 +84,7 @@ class ReviewerAgent(tangyuanAI.Agent):                  # ← 同一基类，切
 
 activate_template("reviewer")
 agent = tangyuanAI.agent_list["reviewer"]
-print(agent.conversation_with_tool("请评审：xxx"))
+print(agent.conversation("请评审：xxx"))
 ```
 
 > 同一份 `agent_list`，OpenAI Agent 和 Anthropic Agent 可以直接 `ask_for_help` 互调。

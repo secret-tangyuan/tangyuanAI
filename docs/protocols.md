@@ -49,8 +49,8 @@ class ChatAgent(tangyuanAI.Agent):
 | 方法 | 说明 |
 |---|---|
 | `__init__(new_load=True)` | 初始化 |
-| `conversation_with_tool(messages, tool, images)` | 同步对话 |
-| `aconversation_with_tool(messages, tool, images)` | 异步对话 |
+| `conversation(messages, tool, images)` | 同步对话 |
+| `aconversation(messages, tool, images)` | 异步对话 |
 | `out(content: dict) -> None` | 输出回调（可重写） |
 | `pack(message, tool_model, tool_name, tool_parameter, finish_task, other, tool_result)` | 事件打包（推荐重写 `out` 而不是 `pack`） |
 | `register_tool_hook(hook_func)` | 注册工具钩子 |

@@ -104,7 +104,7 @@ onUnmounted(() => {
     model_name  = <span class="s">"gpt-5"</span>
 
 tangyuanAI.activate_template(<span class="s">"weather"</span>)
-tangyuanAI.agent_list[<span class="s">"weather"</span>].conversation_with_tool(
+tangyuanAI.agent_list[<span class="s">"weather"</span>].conversation(
     <span class="s">"北京今天天气？"</span>)
 <span class="c"># → "北京今天晴，温度 25°C"</span></code></pre>
           </div>
@@ -314,7 +314,7 @@ $ export API_KEY="sk-…"
 <span class="c"># 4. 运行</span>
 <span class="k">if</span> __name__ == <span class="s">"__main__"</span>:
     tangyuanAI.activate_template(<span class="s">"weather"</span>)
-    tangyuanAI.agent_list[<span class="s">"weather"</span>].conversation_with_tool(
+    tangyuanAI.agent_list[<span class="s">"weather"</span>].conversation(
         <span class="s">"北京今天天气怎么样？"</span>)
     <span class="c"># → "北京今天晴，温度 25°C"</span></code></pre>
       </div>
