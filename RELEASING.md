@@ -11,10 +11,10 @@
 
 ```bash
 # 1. 确认 main 分支上的版本号和 CHANGELOG 已同步更新
-# 2. 编辑子模块 Tangyuan/pyproject.toml，把 version 字段改成要发布的版本
+# 2. 编辑子模块 tangyuanAI/pyproject.toml，把 version 字段改成要发布的版本
 # 3. 在 CHANGELOG.md 里把 [Unreleased] 段合并到新版本段
 # 4. 提交并推送到 main（CI 会跑测试 + lint）
-git add Tangyuan/pyproject.toml Tangyuan/CHANGELOG.md
+git add tangyuanAI/pyproject.toml tangyuanAI/CHANGELOG.md
 git commit -m "chore: bump version to 0.2.1"
 git push origin main
 
