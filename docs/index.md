@@ -11,7 +11,7 @@ icon: HOME_OUTLINED
 
 tangyuanAI 是一个轻量、模块化的多智能体协作框架，让 LLM 像"公司团队"一样分工完成任务。
 
-同一份 `agent_list` 同时容纳 **OpenAI 协议 Agent**（`BaseAgent`）与 **Anthropic 协议 Agent**（`AnthropicAgent`），通过 `Agent` 工厂基类 + `protocol` 字段统一选择。
+同一份 `agent_list` 同时容纳 **OpenAI 协议 Agent** 与 **Anthropic 协议 Agent**，通过 `Agent` 工厂基类 + `protocol` 字段统一选择（`BaseAgent` / `AnthropicAgent` 直继承仍兼容，但已 deprecated）。
 
 ## 文档导航
 
@@ -29,15 +29,18 @@ tangyuanAI 是一个轻量、模块化的多智能体协作框架，让 LLM 像"
 | [kb.md](kb.md) | 知识库（RAG）：Knowledge 类（多实例隔离）/ 全文 + 向量 + 重排检索 / 文档处理（v1.1.0+ vendor 在主包） |
 | [a2a.md](a2a.md) | A2A 互操作（核心原生）：导入 / 导出 / 来源跟踪 |
 | [image-generation.md](image-generation.md) | 图片生成：config 驱动的 provider 方言翻译 / 本地下载（v1.1.0+ vendor 在主包） |
+| [image-input.md](image-input.md) | 图像理解（vision）输入：3 种传图方式 + Responses 协议 + `detail` 字段 |
 | [plugin-install.md](plugin-install.md) | 第三方插件安装：`tangyuanai plugin install-git <git-url>` 或 `pip install <pkg>` |
 | [plugin-dev.md](plugin-dev.md) | **插件开发 / 接口文档**：写兼容插件替换默认 KB / 图片实现 |
+| [plugin-compat.md](plugin-compat.md) | 兼容外部 Plugin 协议（v1.1.1+）：OpenAI ChatGPT Plugin 1.0 + Anthropic Claude Code Plugin |
+| [mcp-skills.md](mcp-skills.md) | MCP 与 Skill：跨进程通信 + 提示词 / 工具模板加载 |
 
-> 本套文档就是本仓库自己搭的文档站：**https://docs.ai.secret-tangyuan.com/**（Cloudflare Pages 构建，push 自动更新，见 [docs-site/README.md](../docs-site/README.md)）。
+> 本套文档就是本仓库自己搭的文档站：**https://ai.secret-tangyuan.com/docs**（Cloudflare Pages 构建，push 自动更新，见 [docs-site/README.md](../docs-site/README.md)）。
 
 ## 仓库结构
 
 ```
-Tangyuan/                       # 主包：tangyuanAI（PyPI）
+tangyuanAI/                       # 主包：tangyuanAI（PyPI）
 ├── Agent_Base_.py               # BaseAgent（OpenAI 协议）
 ├── anthropic_agent.py           # AnthropicAgent（Anthropic 协议）
 ├── Agent_list.py                # agent_list + 模板池（register_template / activate_template）

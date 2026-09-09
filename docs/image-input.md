@@ -1,3 +1,10 @@
+---
+slug: image-input
+title: 图像理解输入（vision）
+order: 11
+icon: IMAGE_OUTLINED
+---
+
 # 图像理解输入（vision）
 
 tangyuanAI 支持把图片传给 LLM（OpenAI Chat Completions / Anthropic Messages / OpenAI Responses API 三协议）。
