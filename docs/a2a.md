@@ -62,7 +62,7 @@ pip install "tangyuanAI[a2a]"   # 需要 aiohttp
 
 ```python
 import tangyuanAI as t
-from tangyuanAI.kb.a2a_exporter import A2AExporter
+from tangyuanAI.a2a_exporter import A2AExporter
 
 # 默认暴露全部 agent_list；可传子集 {"writer": writer_agent}
 exporter = A2AExporter(host="127.0.0.1", port=9000)
@@ -98,9 +98,9 @@ curl -X POST http://127.0.0.1:9000/a2a/v1/tasks/send \
 
 ## 协议模块
 
-- `kb/a2a_protocol.py`：JSON-RPC 2.0 构造/解析 + Agent Card + 文本提取（纯数据结构，无网络依赖）
-- `kb/a2a_client.py`：发现 + 调用 + 注册（httpx）
-- `kb/a2a_exporter.py`：aiohttp HTTP server（optional `[a2a]`）
+- `tangyuanAI/a2a_protocol.py`：JSON-RPC 2.0 构造/解析 + Agent Card + 文本提取（纯数据结构，无网络依赖）
+- `tangyuanAI/a2a_client.py`：发现 + 调用 + 注册（httpx）
+- `tangyuanAI/a2a_exporter.py`：aiohttp HTTP server（optional `[a2a]`）
 
 ## 与 ask_for_help 的关系
 

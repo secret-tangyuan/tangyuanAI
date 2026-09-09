@@ -45,7 +45,8 @@ def add(a: float, b: float) -> float:
 ```python
 from tangyuanAI import builtin_tool
 
-class MyAgent(tangyuanAI.BaseAgent):
+class MyAgent(tangyuanAI.Agent):
+    protocol = "openai"  # 或 "anthropic" / "openai-responses"
     @builtin_tool(
         description="求两数之和",
         params={"a": "第一个加数", "b": "第二个加数"},
@@ -95,7 +96,8 @@ class AddParams(BaseModel):
     a: float = Field(..., description="第一个加数")
     b: float = Field(..., description="第二个加数")
 
-class MyAgent(tangyuanAI.BaseAgent):
+class MyAgent(tangyuanAI.Agent):
+    protocol = "openai"
     @builtin_tool(
         description="求两数之和",
         params_model=AddParams,  # 显式传
@@ -116,7 +118,8 @@ class MyAgent(tangyuanAI.BaseAgent):
 | 工具返回值 | 字符串或可 JSON 序列化的对象 |
 
 ```python
-class MyAgent(tangyuanAI.BaseAgent):
+class MyAgent(tangyuanAI.Agent):
+    protocol = "openai"
     def __init__(self):
         super().__init__()
         self.register_tool_hook(self._audit)

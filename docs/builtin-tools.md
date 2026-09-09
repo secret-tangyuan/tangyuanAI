@@ -77,5 +77,3 @@ tools = agent.get_all_available_tools()
 `tests/test_anthropic_agent.py`（17 项）覆盖 `AnthropicAgent` 的全部 8 个 builtin_tool；
 `tests/test_base_agent_parity.py`（6 项）覆盖 `BaseAgent` 同名工具；
 `tests/test_template_pool.py`（33 项）覆盖模板池 API + `BaseAgent` 4 个 builtin_tool。
-
-详见 [testing.md](testing.md)。
