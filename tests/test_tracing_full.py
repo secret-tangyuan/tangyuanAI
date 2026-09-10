@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from tangyuanAI.tracing import (
     CostCalculator,
     JSONLExporter,
@@ -139,7 +138,6 @@ def test_cli_trace_last_prints_no_file_friendly(capsys):
     """tangyuanai trace last 在 logs/spans.jsonl 不存在时打印友好提示。"""
     from tangyuanAI import cli as cli_mod
     # 在空 cwd 中跑
-    import os
     old_cwd = os.getcwd()
     try:
         os.chdir(os.path.dirname(cli_mod.__file__))
