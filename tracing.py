@@ -274,3 +274,95 @@ class JSONLExporter(SpanExporter):
                     )
                     + "\n"
                 )
+
+
+# ============================================================
+# CostCalculator — 硬编码 PRICING_TABLE (v1.4.0+)
+# ============================================================
+
+
+# 单位: USD / 1M tokens
+# 表不全时 cost_usd = 0 且 attrs["cost_estimated"] = False
+_PRICING_TABLE: dict[str, dict[str, float]] = {
+    # OpenAI
+    "gpt-5": {"prompt": 1.25, "completion": 10.00},
+    "gpt-5-mini": {"prompt": 0.25, "completion": 2.00},
+    "gpt-4o": {"prompt": 2.50, "completion": 10.00},
+    "gpt-4o-mini": {"prompt": 0.15, "completion": 0.60},
+    "o1": {"prompt": 15.00, "completion": 60.00},
+    "o1-mini": {"prompt": 3.00, "completion": 12.00},
+    "o3-mini": {"prompt": 1.10, "completion": 4.40},
+    # Anthropic
+    "claude-3-5-sonnet-latest": {"prompt": 3.00, "completion": 15.00},
+    "claude-3-5-sonnet-20241022": {"prompt": 3.00, "completion": 15.00},
+    "claude-3-5-haiku-latest": {"prompt": 0.80, "completion": 4.00},
+    "claude-3-opus-latest": {"prompt": 15.00, "completion": 75.00},
+    "claude-4-sonnet": {"prompt": 3.00, "completion": 15.00},
+    "claude-4-opus": {"prompt": 15.00, "completion": 75.00},
+}
+
+
+class CostCalculator:
+    """从 model name + token counts 算 USD 成本。"""
+
+    @classmethod
+    def estimate(cls, model: str, prompt_tokens: int, completion_tokens: int) -> tuple:
+        """返回 (cost_usd, is_estimated)。
+
+        is_estimated=False 时 cost_usd=0 且用户知道这条记录没价格数据。
+        """
+        if not model:
+            return 0.0, False
+        # 大小写不敏感 + 模糊匹配 (允许 "gpt-5-0613" 这样的版本后缀)
+        key = next((k for k in _PRICING_TABLE if k.lower() == model.lower()), None)
+        if key is None:
+            # 尝试前缀匹配 (e.g., "gpt-5" -> "gpt-5")
+            for k in _PRICING_TABLE:
+                if model.lower().startswith(k.lower()):
+                    key = k
+                    break
+        if key is None:
+            return 0.0, False
+        rates = _PRICING_TABLE[key]
+        cost = (prompt_tokens * rates["prompt"] + completion_tokens * rates["completion"]) / 1_000_000
+        return cost, True
+
+    @classmethod
+    def add_to_span(cls, span: Span, model: str, prompt_tokens: int, completion_tokens: int) -> None:
+        cost, estimated = cls.estimate(model, prompt_tokens, completion_tokens)
+        span.set_attr("model", model)
+        span.set_attr("prompt_tokens", prompt_tokens)
+        span.set_attr("completion_tokens", completion_tokens)
+        span.set_attr("cost_usd", round(cost, 6))
+        span.set_attr("cost_estimated", estimated)
+
+
+def register_pricing(model: str, prompt_usd_per_m: float, completion_usd_per_m: float) -> None:
+    """运行时注册价格(给部署方覆盖默认表)。"""
+    _PRICING_TABLE[model] = {"prompt": prompt_usd_per_m, "completion": completion_usd_per_m}
+
+
+def get_pricing_table() -> dict:
+    """调试用:返回当前价格表快照。"""
+    return dict(_PRICING_TABLE)
+
+
+__all__ = [
+    "Span",
+    "SpanKind",
+    "SpanContext",
+    "Trace",
+    "Tracer",
+    "trace_llm_call",
+    "trace_tool_call",
+    "trace_fc_round",
+    "current_trace",
+    "current_span",
+    "get_default_tracer",
+    "set_default_tracer",
+    "ConsoleExporter",
+    "JSONLExporter",
+    "CostCalculator",
+    "register_pricing",
+    "get_pricing_table",
+]
