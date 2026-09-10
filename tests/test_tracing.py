@@ -1,16 +1,12 @@
 """tracing.py 单元测试。"""
 from __future__ import annotations
 
-import io
 import json
-import logging
 
-from tangyuanAI import tracing
 from tangyuanAI.tracing import (
     ConsoleExporter,
     JSONLExporter,
     Span,
-    SpanContext,
     SpanKind,
     Trace,
     Tracer,
