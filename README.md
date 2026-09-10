@@ -391,7 +391,7 @@ Tools are reusable across protocols (same definition, same ACL). Multi-agent rou
 这些之外，看更深的内容：
 Beyond these four, read the deeper docs:
 
-- **[文档站 / Documentation](https://docs.ai.secret-tangyuan.com/)** — 完整 API、钩子、ACL、MCP、持久化、Skill，全在这。*(YAML-frontmatter 驱动的 `docs/*.md`；push 自动部署。)*
+- **[文档站 / Documentation](https://ai.secret-tangyuan.com/docs)** — 完整 API、钩子、ACL、MCP、持久化、Skill，全在这。*(YAML-frontmatter 驱动的 `docs/*.md`；push 自动部署。)*
   *(YAML-frontmatter-driven `docs/*.md`; push auto-deploys.)*
 - **[CHANGELOG.md](./CHANGELOG.md)** — 每个版本的 Added / Fixed / Changed 记录。*(这个文件总在变；README 长期稳定。)*
   *(This file changes; the README stays stable.)*
@@ -401,15 +401,15 @@ Beyond these four, read the deeper docs:
 ## 开发与测试 / Development & testing
 
 ```bash
-git clone https://github.com/secret-tangyuan/AI_Company.git
+git clone https://github.com/secret-tangyuan/tangyuanAI.git
 cd AI_Company
 uv sync --group dev
-uv run pytest Tangyuan/tests/ -v
-uv run ruff check Tangyuan/
+uv run pytest tangyuanAI/tests/ -v
+uv run ruff check tangyuanAI/
 ```
 
-`Tangyuan/tests/_llm_mock.py` 提供的 mock 让 Agent 测试构造完整 wire-format payload，断言发送和接收——无需 API key。
-The mock layer in `Tangyuan/tests/_llm_mock.py` lets Agent tests construct full wire-format payloads and assert on what got sent and what came back — no API keys required.
+`tangyuanAI/tests/_llm_mock.py` 提供的 mock 让 Agent 测试构造完整 wire-format payload，断言发送和接收——无需 API key。
+The mock layer in `tangyuanAI/tests/_llm_mock.py` lets Agent tests construct full wire-format payloads and assert on what got sent and what came back — no API keys required.
 
 ---
 

@@ -5,7 +5,9 @@ tangyuanAI 的所有显著变更记录。
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.3.0] - 2026-09-08
+
+> 合并自 PR #6。文档有效性修复（PR 后续批次）合并到下个 patch 版本。
 
 ### Added
 - **`conversation` / `aconversation` 新主入口 + `tooluse` / `addhistory` 参数**

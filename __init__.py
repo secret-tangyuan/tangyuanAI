@@ -222,7 +222,7 @@ try:
 except ImportError:
     pass
 
-# 版本号自动从包元数据读取，与 Tangyuan/pyproject.toml 中的 version 字段保持同步。
+# 版本号自动从包元数据读取，与 tangyuanAI/pyproject.toml 中的 version 字段保持同步。
 # 覆盖方式（仅在打包失败等极端场景下使用）：import tangyuanAI; tangyuanAI.__version__ = "x"
 try:
     from importlib.metadata import PackageNotFoundError

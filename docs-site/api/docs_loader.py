@@ -1,4 +1,4 @@
-"""docs 加载器：扫描 Tangyuan/docs/*.md，解析 frontmatter + headings。
+"""docs 加载器：扫描 tangyuanAI/docs/*.md，解析 frontmatter + headings。
 
 给 FastAPI 后端提供数据；与 VitePress 侧栏生成逻辑保持一致。
 """

@@ -5,12 +5,12 @@ VitePress 实现，BBDDFF 浅蓝色主题。
 - **`/`**：落地页（`landing/`，深/浅色跟随系统 + 手动切换）
 - **`/docs/`**：文档站，markdown 源在 `../docs/`（frontmatter 驱动，自动排序）
 
-线上地址：**https://docs.tangyuanai.secret-tangyuan.xin**（Cloudflare Pages，push 自动构建）
+线上地址：**https://ai.secret-tangyuan.com/docs**（Cloudflare Pages，push 自动构建）
 
 ## 启动
 
 ```bash
-cd Tangyuan/docs-site
+cd tangyuanAI/docs-site
 
 # 前端（VitePress dev server，自动同步 docs + 生成 api-data）
 pnpm install         # 首次
@@ -110,7 +110,7 @@ Dashboard 配置见 `deploy/PAGES.md`。要点：
 - **Root directory**：`docs-site`
 - **Build command**：`pnpm install && pnpm build`
 - **Build output**：`.vitepress/dist`
-- 域名：`docs.tangyuanai.secret-tangyuan.xin`（CNAME → tangyuanai.pages.dev）
+- 域名：`ai.secret-tangyuan.com/docs`（Cloudflare Pages 项目 `tangyuanai`，path `/docs`）
 - 每次 push main 自动构建；HTTPS 证书自动签发 + 自动续签
 
 ### 本地构建 / 服务器版

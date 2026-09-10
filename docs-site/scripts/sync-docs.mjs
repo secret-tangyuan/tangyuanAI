@@ -10,7 +10,7 @@ import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const SRC = resolve(__dirname, '../../docs')      // Tangyuan/docs/（数据源）
+const SRC = resolve(__dirname, '../../docs')      // tangyuanAI/docs/（数据源）
 const DST_DOCS = resolve(__dirname, '../docs-build/docs') // 文档构建目录（/docs/* 路由）
 const DST_ROOT = resolve(__dirname, '../docs-build')      // 构建目录根（/ 路由）
 const LANDING_MD = resolve(__dirname, '../landing/index.md') // 落地页包装模板

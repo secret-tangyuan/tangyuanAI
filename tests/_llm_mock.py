@@ -3,7 +3,7 @@
 
 LLM 协议层 mock —— OpenAI 兼容 Chat Completions + Anthropic Messages API。
 
-仅供 ``Tangyuan/tests/`` 下的单测使用；不是发布给用户的 SDK 的一部分。
+仅供 ``tangyuanAI/tests/`` 下的单测使用；不是发布给用户的 SDK 的一部分。
 文件名前缀 ``_`` 配合目录隔离，确保不会被外部代码意外 import。
 
 设计目标：让 Agent 走完整 wire 协议（构造 payload → 序列化 → 序列化回来），

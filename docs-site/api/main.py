@@ -13,7 +13,7 @@ from .docs_loader import load_doc, load_docs, search_docs
 app = FastAPI(
     title="tangyuanAI Docs API",
     version="0.1.0",
-    description="Tangyuan/docs/*.md 的动态加载后端，frontmatter 驱动。",
+    description="tangyuanAI/docs/*.md 的动态加载后端，frontmatter 驱动。",
 )
 
 app.add_middleware(
@@ -26,7 +26,7 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "source": "Tangyuan/docs/"}
+    return {"status": "ok", "source": "tangyuanAI/docs/"}
 
 
 @app.get("/api/docs/list")
