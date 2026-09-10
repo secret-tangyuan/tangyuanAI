@@ -271,17 +271,26 @@ class tool:
         name: Optional[str] = None,
         parameters: Optional[dict] = None,
         overwrite: bool = False,
+        # v1.4.0+ tool reliability kwargs
+        output_schema=None,                        # pydantic BaseModel 子类,校验返回值
+        retry=None,                                  # RetryPolicy 实例,None = 不重试
+        idempotency_ttl: int = 3600,                  # 秒,0 = 关掉 idempotency
     ):
         """
         工具注册装饰器（带日志）
         parameters: OpenAI function calling schema
+        output_schema: pydantic BaseModel 子类,tool 返回值校验失败时返回结构化失败
+        retry: RetryPolicy 实例,transient 异常自动重试
+        idempotency_ttl: 相同 (agent, tool, args) 的缓存秒数,0 关闭
         """
         frame = inspect.currentframe().f_back
         caller = f"{frame.f_code.co_filename}:{frame.f_lineno}"
         logger.trace(f"register_tool() called from {caller}")
         logger.trace(
             f"params -> allowed_agents={allowed_agents!r}, "
-            f"description={description!r}, name={name!r}, parameters={parameters!r}"
+            f"description={description!r}, name={name!r}, parameters={parameters!r}, "
+            f"output_schema={getattr(output_schema, '__name__', None)!r}, "
+            f"retry={retry!r}, idempotency_ttl={idempotency_ttl!r}"
         )
 
         def decorator(func):
@@ -325,7 +334,10 @@ class tool:
                 "description": description,
                 "name": tool_name,
                 "parameters": parameters,
-                "schema": tool_schema
+                "schema": tool_schema,
+                "output_schema": output_schema,
+                "retry": retry,
+                "idempotency_ttl": idempotency_ttl,
             }
             logger.debug(
                 f"工具注册成功: {tool_name!r} -> {self._tools[tool_name]}"
