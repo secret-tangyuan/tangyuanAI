@@ -5,7 +5,6 @@ from tangyuanAI.checkpoint import (
     FileCheckpointStore,
     Snapshot,
     delete_checkpoint,
-    get_default_checkpoint_store,
     list_checkpoints,
 )
 

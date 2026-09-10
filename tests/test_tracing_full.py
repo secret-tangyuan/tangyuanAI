@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from tangyuanAI.tracing import (
     CostCalculator,
     JSONLExporter,
@@ -97,7 +96,7 @@ def test_jsonl_exporter_full_serialization(tmp_path):
 
     lines = path.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
-    recs = [json.loads(l) for l in lines]
+    recs = [json.loads(line) for line in lines]
     assert recs[0]["name"] == "agent.run"
     assert recs[0]["attrs"]["agent_name"] == "test"
     assert recs[1]["parent_id"] == "p1"
@@ -139,7 +138,6 @@ def test_cli_trace_last_prints_no_file_friendly(capsys):
     """tangyuanai trace last 在 logs/spans.jsonl 不存在时打印友好提示。"""
     from tangyuanAI import cli as cli_mod
     # 在空 cwd 中跑
-    import os
     old_cwd = os.getcwd()
     try:
         os.chdir(os.path.dirname(cli_mod.__file__))

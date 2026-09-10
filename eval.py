@@ -11,13 +11,13 @@ CLI: tangyuanai eval {run, bench, replay, judge}
 """
 from __future__ import annotations
 
-import json
 import logging
 import time
-import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
+
+if TYPE_CHECKING:
+    from .judge import LLMJudge
 
 _logger = logging.getLogger(__name__)
 
@@ -85,12 +85,7 @@ def _tool_match(observed: list, expected: list) -> tuple:
 
 def _extract_tool_calls(response_obj: Any) -> list:
     """从 agent.conversation 返回的对象里提 tool_calls。返回 [{name, ...}, ...]"""
-    try:
-        # 历史最后一个 assistant 消息里的 tool_calls
-        history = getattr(response_obj, "_conv_history_after", None)
-        # 简化:agent 在 conversation 后不会自动暴露 history;让 agent 公开 history 字段
-    except Exception:
-        pass
+    # 占位:未来可从 response_obj 取
     return []
 
 

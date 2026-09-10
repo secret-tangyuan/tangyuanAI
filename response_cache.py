@@ -18,7 +18,7 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Optional
 
 from .llm_transport import ChatRequest, LLMResponse
 
@@ -144,8 +144,8 @@ class SQLiteBackend(ResponseCacheBackend):
     """用 stdlib sqlite3 持久化。适合跨进程共享。"""
 
     def __init__(self, db_path: str = "logs/response_cache.sqlite"):
-        import sqlite3
         import os
+        import sqlite3
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self.db_path = db_path
         self._conn = sqlite3.connect(db_path, check_same_thread=False)

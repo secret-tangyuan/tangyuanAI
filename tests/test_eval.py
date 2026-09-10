@@ -1,21 +1,14 @@
 """eval + judge 单元测试。"""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List
-
-import pytest
-
 from tangyuanAI.eval import (
     EvalCase,
-    EvalResult,
     EvalSuite,
     render_table,
     run_case,
     run_suite,
 )
 from tangyuanAI.judge import JudgeConfig, LLMJudge
-
 
 # ============================================================
 # EvalCase / run_case
@@ -88,7 +81,6 @@ def test_run_case_with_keywords_and_tools():
         expected_tool_calls=["get_weather"],
     )
     # 让 FakeAgent 在新加的 assistant 消息上也带 tool_calls,跑 run_case 取最后一条
-    orig_conversation = agent.conversation
 
     def patched_conversation(prompt):
         agent.history.append({"role": "user", "content": prompt})
@@ -145,7 +137,6 @@ def test_run_suite_resets_history_between_cases():
 
 def test_render_table_no_results(capsys):
     """空 results 不抛、打印 (no results)。"""
-    import sys
     render_table([])
     out = capsys.readouterr().out
     assert "(no results)" in out

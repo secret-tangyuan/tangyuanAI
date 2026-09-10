@@ -1,17 +1,13 @@
 """protocol_chain + response_cache 单元测试。"""
 from __future__ import annotations
 
-from typing import List
-
 import pytest
-
 from tangyuanAI.errors import APIError
 from tangyuanAI.llm_transport import (
     ChatRequest,
     LLMEvent,
     LLMResponse,
     LLMTransport,
-    ToolCall,
     UsageInfo,
 )
 from tangyuanAI.protocol_chain import (
@@ -24,7 +20,6 @@ from tangyuanAI.response_cache import (
     cache_key,
     is_cacheable,
 )
-
 
 # ============================================================
 # Mock transport helpers
