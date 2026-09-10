@@ -835,7 +835,7 @@ class _AgentCommon:
                 full_content = ""
         else:
             try:
-                from .tracing import trace_llm_call, CostCalculator, current_span
+                from .tracing import CostCalculator, current_span, trace_llm_call
                 with trace_llm_call(name="llm.chat", model=self.model_name, stream=False):
                     llm_rsp: LLMResponse = transport.chat(req)
                     if llm_rsp.usage:
@@ -950,7 +950,7 @@ class _AgentCommon:
         else:
             self.stream_run = False
             try:
-                from .tracing import trace_llm_call, CostCalculator, current_span
+                from .tracing import CostCalculator, current_span, trace_llm_call
                 with trace_llm_call(name="llm.achat", model=self.model_name, stream=False):
                     llm_rsp: LLMResponse = await transport.achat(req)
                     if llm_rsp.usage:
