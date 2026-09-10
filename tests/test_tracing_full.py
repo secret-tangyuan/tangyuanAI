@@ -96,7 +96,7 @@ def test_jsonl_exporter_full_serialization(tmp_path):
 
     lines = path.read_text(encoding="utf-8").strip().splitlines()
     assert len(lines) == 2
-    recs = [json.loads(l) for l in lines]
+    recs = [json.loads(l) for line in lines]
     assert recs[0]["name"] == "agent.run"
     assert recs[0]["attrs"]["agent_name"] == "test"
     assert recs[1]["parent_id"] == "p1"
