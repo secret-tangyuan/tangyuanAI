@@ -625,12 +625,20 @@ class _AgentCommon:
 
     def _execute_tool_calls(self, work_history, tool_calls_list):
         """共享 FC 工具执行：解析参数 → hooks → Pydantic → ToolRunner → 结果回填。"""
+        from .tool_reliability import (
+            IdempotencyStore,
+            VerifiableToolResult,
+            get_default_idempotency_store,
+            validate_output,
+        )
+
         work_history.append({
             "role": "assistant",
             "content": None,
             "tool_calls": tool_calls_list,
         })
         tool_results = []
+        idem_store = get_default_idempotency_store()
         for tool_call in tool_calls_list:
             tool_name = tool_call["function"]["name"]
             tool_id = tool_call["id"]
@@ -644,10 +652,60 @@ class _AgentCommon:
                 from .agent_tool import _validate_tool_args_for
                 args = _validate_tool_args_for(self, tool_name, args)
 
-                async_id = None
-                result, async_id = self._dispatch_tool(tool_name, args)
-                if async_id is not None:
-                    result = f"[tool {tool_name} still running in background as task_id={async_id}]"
+                # v1.4.0+ tool reliability: idempotency cache hit check
+                tool_meta = (tool_registry.get_tool_info(tool_name) or {})
+                ttl = tool_meta.get("idempotency_ttl", 3600)
+                cache_hit_result = None
+                if ttl and ttl > 0:
+                    cache_key = IdempotencyStore.compute_key(
+                        agent_uuid=self.uuid or self.name or "",
+                        tool_call_id=tool_id or "",
+                        tool_name=tool_name,
+                        args=args,
+                    )
+                    cache_hit_result = idem_store.get(cache_key)
+
+                if cache_hit_result is not None:
+                    result = cache_hit_result.to_dict()
+                    async_id = None
+                    logger.debug(f"tool {tool_name} 命中 idempotency cache")
+                else:
+                    async_id = None
+                    raw_result, async_id = self._dispatch_tool(tool_name, args)
+                    if async_id is not None:
+                        result = {
+                            "ok": True,
+                            "value": f"[tool {tool_name} still running in background as task_id={async_id}]",
+                            "schema_validated": False,
+                            "retry_count": 0,
+                        }
+                    else:
+                        # 输出校验
+                        schema = tool_meta.get("output_schema")
+                        ok, err_msg, validated_value = validate_output(raw_result, schema)
+                        result = {
+                            "ok": ok,
+                            "value": validated_value if ok else None,
+                            "error": err_msg,
+                            "raw": raw_result,
+                            "schema_validated": schema is not None,
+                            "retry_count": 0,
+                        }
+                        # 写 idempotency cache
+                        if ttl and ttl > 0:
+                            idem_store.set(
+                                cache_key,
+                                VerifiableToolResult(
+                                    ok=result["ok"],
+                                    value=result["value"],
+                                    error=result["error"],
+                                    raw=result["raw"],
+                                    schema_validated=result["schema_validated"],
+                                    retry_count=result["retry_count"],
+                                ),
+                                ttl=ttl,
+                            )
+
                 self._execute_hooks("after", tool_name, args, result)
                 self.pack(tool_result=result, tool_name=tool_name)
                 tool_results.append({
@@ -674,29 +732,31 @@ class _AgentCommon:
         full_content = ""
         tool_calls_list: list = []
         self.stream_run = True
-        for evt in transport.chat_stream(req):
-            if evt.type == "text":
-                full_content += evt.text
-                self.pack(evt.text, finish_task=False)
-            elif evt.type == "tool_call" and evt.tool_call is not None:
-                tc = evt.tool_call
-                tool_calls_list.append({
-                    "id": tc.id, "type": "function",
-                    "function": {
-                        "name": tc.name,
-                        "arguments": json.dumps(tc.arguments, ensure_ascii=False),
-                    },
-                })
-            elif evt.type == "usage" and evt.usage is not None:
-                # usage 不是终止信号；对话可能继续带 tool_calls。只打印用量。
-                self.pack(
-                    f"\n本次请求用量：提示 {evt.usage.prompt_tokens} tokens，"
-                    f"生成 {evt.usage.completion_tokens} tokens，"
-                    f"总计 {evt.usage.total_tokens} tokens。",
-                    other=True,
-                )
-            elif evt.type == "done":
-                self.stream_run = False
+        from .tracing import trace_llm_call
+        with trace_llm_call(name="llm.chat_stream", model=self.model_name, stream=True):
+            for evt in transport.chat_stream(req):
+                if evt.type == "text":
+                    full_content += evt.text
+                    self.pack(evt.text, finish_task=False)
+                elif evt.type == "tool_call" and evt.tool_call is not None:
+                    tc = evt.tool_call
+                    tool_calls_list.append({
+                        "id": tc.id, "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": json.dumps(tc.arguments, ensure_ascii=False),
+                        },
+                    })
+                elif evt.type == "usage" and evt.usage is not None:
+                    # usage 不是终止信号；对话可能继续带 tool_calls。只打印用量。
+                    self.pack(
+                        f"\n本次请求用量：提示 {evt.usage.prompt_tokens} tokens，"
+                        f"生成 {evt.usage.completion_tokens} tokens，"
+                        f"总计 {evt.usage.total_tokens} tokens。",
+                        other=True,
+                    )
+                elif evt.type == "done":
+                    self.stream_run = False
         return full_content, tool_calls_list
 
     def _collect_plain_response(self, llm_rsp: LLMResponse):
@@ -775,7 +835,18 @@ class _AgentCommon:
                 full_content = ""
         else:
             try:
-                llm_rsp: LLMResponse = transport.chat(req)
+                from .tracing import trace_llm_call, CostCalculator, current_span
+                with trace_llm_call(name="llm.chat", model=self.model_name, stream=False):
+                    llm_rsp: LLMResponse = transport.chat(req)
+                    if llm_rsp.usage:
+                        span = current_span()
+                        if span:
+                            CostCalculator.add_to_span(
+                                span,
+                                model=self.model_name,
+                                prompt_tokens=llm_rsp.usage.prompt_tokens,
+                                completion_tokens=llm_rsp.usage.completion_tokens,
+                            )
                 full_content, tool_calls_list = self._collect_plain_response(llm_rsp)
             except Exception as e:
                 logger.error(f"非流式响应处理错误: {e}")
@@ -849,35 +920,48 @@ class _AgentCommon:
         tool_calls_list: list = []
         if self.stream:
             try:
-                async for evt in transport.achat_stream(req):
-                    if evt.type == "text":
-                        full_content += evt.text
-                        self.pack(evt.text, finish_task=False)
-                    elif evt.type == "tool_call" and evt.tool_call is not None:
-                        tc = evt.tool_call
-                        tool_calls_list.append({
-                            "id": tc.id, "type": "function",
-                            "function": {
-                                "name": tc.name,
-                                "arguments": json.dumps(tc.arguments, ensure_ascii=False),
-                            },
-                        })
-                    elif evt.type == "usage" and evt.usage is not None:
-                        self.stream_run = False
-                        self.pack(finish_task=True)
-                        self.pack(
-                            f"usage: prompt={evt.usage.prompt_tokens} "
-                            f"completion={evt.usage.completion_tokens} "
-                            f"total={evt.usage.total_tokens}",
-                            other=True,
-                        )
+                from .tracing import trace_llm_call
+                with trace_llm_call(name="llm.achat_stream", model=self.model_name, stream=True):
+                    async for evt in transport.achat_stream(req):
+                        if evt.type == "text":
+                            full_content += evt.text
+                            self.pack(evt.text, finish_task=False)
+                        elif evt.type == "tool_call" and evt.tool_call is not None:
+                            tc = evt.tool_call
+                            tool_calls_list.append({
+                                "id": tc.id, "type": "function",
+                                "function": {
+                                    "name": tc.name,
+                                    "arguments": json.dumps(tc.arguments, ensure_ascii=False),
+                                },
+                            })
+                        elif evt.type == "usage" and evt.usage is not None:
+                            self.stream_run = False
+                            self.pack(finish_task=True)
+                            self.pack(
+                                f"usage: prompt={evt.usage.prompt_tokens} "
+                                f"completion={evt.usage.completion_tokens} "
+                                f"total={evt.usage.total_tokens}",
+                                other=True,
+                            )
             except Exception as e:
                 logger.error(f"异步流式响应处理错误: {e}")
                 full_content = ""
         else:
             self.stream_run = False
             try:
-                llm_rsp: LLMResponse = await transport.achat(req)
+                from .tracing import trace_llm_call, CostCalculator, current_span
+                with trace_llm_call(name="llm.achat", model=self.model_name, stream=False):
+                    llm_rsp: LLMResponse = await transport.achat(req)
+                    if llm_rsp.usage:
+                        span = current_span()
+                        if span:
+                            CostCalculator.add_to_span(
+                                span,
+                                model=self.model_name,
+                                prompt_tokens=llm_rsp.usage.prompt_tokens,
+                                completion_tokens=llm_rsp.usage.completion_tokens,
+                            )
                 full_content, tool_calls_list = self._collect_plain_response(llm_rsp)
             except Exception as e:
                 logger.error(f"异步非流式响应处理错误: {e}")
@@ -1177,13 +1261,16 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
         tool_uses: list = []
 
         try:
+            from .tracing import trace_llm_call
             if self.stream:
-                for evt in transport.chat_stream(req):
-                    self._accumulate_anthropic_evt(assistant_blocks, tool_uses, evt)
+                with trace_llm_call(name="anthropic.chat_stream", model=self.model_name, stream=True):
+                    for evt in transport.chat_stream(req):
+                        self._accumulate_anthropic_evt(assistant_blocks, tool_uses, evt)
             else:
-                full_text = self._accumulate_anthropic_rsp(
-                    assistant_blocks, tool_uses, full_text, transport.chat(req),
-                )
+                with trace_llm_call(name="anthropic.chat", model=self.model_name, stream=False):
+                    full_text = self._accumulate_anthropic_rsp(
+                        assistant_blocks, tool_uses, full_text, transport.chat(req),
+                    )
         except Exception as e:
             logger.error(f"{self.name} Anthropic 调用失败：{e}")
             raise
@@ -1231,13 +1318,16 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
         tool_uses: list = []
 
         try:
+            from .tracing import trace_llm_call
             if self.stream:
-                async for evt in transport.achat_stream(req):
-                    self._accumulate_anthropic_evt(assistant_blocks, tool_uses, evt)
+                with trace_llm_call(name="anthropic.achat_stream", model=self.model_name, stream=True):
+                    async for evt in transport.achat_stream(req):
+                        self._accumulate_anthropic_evt(assistant_blocks, tool_uses, evt)
             else:
-                full_text = self._accumulate_anthropic_rsp(
-                    assistant_blocks, tool_uses, full_text, await transport.achat(req),
-                )
+                with trace_llm_call(name="anthropic.achat", model=self.model_name, stream=False):
+                    full_text = self._accumulate_anthropic_rsp(
+                        assistant_blocks, tool_uses, full_text, await transport.achat(req),
+                    )
         except Exception as e:
             logger.error(f"{self.name} Anthropic 异步调用失败：{e}")
             raise
