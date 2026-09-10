@@ -21,7 +21,7 @@ import uuid
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 _logger = logging.getLogger(__name__)
 
