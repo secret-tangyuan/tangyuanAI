@@ -11,6 +11,7 @@
 
 **作者 / Author**：[secret-tangyuan](https://github.com/secret-tangyuan) · [个人介绍 / Gravatar](https://gravatar.com/secrettangyuan)
 **文档站 / Docs**：[ai.secret-tangyuan.com/docs](https://ai.secret-tangyuan.com/docs)
+**学习路径 / Tutorial**：[TUTORIAL.md](TUTORIAL.md) —— 30 分钟从零到复杂 Agent
 
 ---
 
