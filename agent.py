@@ -858,6 +858,12 @@ class _AgentCommon:
         if tooluse and self.fc_model and tool_calls_list:
             self._execute_tool_calls(work_history, tool_calls_list)
             logger.debug("工具执行完成，继续对话")
+            # v1.4.0+: mid-flight snapshot before FC 续轮
+            try:
+                from .checkpoint import capture_snapshot, get_default_checkpoint_store
+                get_default_checkpoint_store().save(capture_snapshot(self))
+            except Exception as e:
+                logger.debug(f"mid-flight checkpoint 失败(不影响对话): {e}")
             return self.conversation()
 
         # XML 标签模式（OpenAI 特有钩子；其他协议返回 None）
@@ -987,6 +993,25 @@ class _AgentCommon:
         return await self.aconversation(
             messages=messages, tooluse=True, addhistory=True, images=images,
         )
+
+    # ============================================================
+    # Checkpoint / resume (v1.4.0+)
+    # ============================================================
+
+    def checkpoint(self):
+        """手动保存 agent 当前状态快照。返回 Snapshot 对象(含 snapshot_id)。"""
+        from .checkpoint import save_checkpoint
+        return save_checkpoint(self)
+
+    def resume(self, snapshot_id):
+        """从 snapshot_id 恢复 agent.history(其它状态由调用方自行处理)。"""
+        from .checkpoint import restore_checkpoint
+        return restore_checkpoint(self, snapshot_id)
+
+    def list_checkpoints(self):
+        """列出本 agent 的所有 snapshot metadata。"""
+        from .checkpoint import list_checkpoints
+        return list_checkpoints(self)
 
 
 # ============================================================================
