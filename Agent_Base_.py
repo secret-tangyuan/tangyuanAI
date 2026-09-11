@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""⚠️ v0.4.2+ DEPRECATED — **计划在 v1.2.0 移除**：本模块旧实现仍保留兼容，但 bug 修复 / 瘦身只发生在 ``tangyuanAI.agent``。
+"""⚠️ v0.4.2+ DEPRECATED — **计划在 v1.3.0 移除**：本模块旧实现仍保留兼容，但 bug 修复 / 瘦身只发生在 ``tangyuanAI.agent``。
 
 OpenAI 协议 Agent 基类的兼容路径（``tangyuanAI.Agent_Base_.Agent``）。
 逻辑、bug 修复、瘦身现在只在 ``tangyuanAI.agent._OpenAIBase``
 （对外别名 :class:`tangyuanAI.BaseAgent`）里维护。
 
-**v1.2.0 移除计划**：本模块（``tangyuanAI.Agent_Base_``）和 ``tangyuanAI.anthropic_agent`` 都将在
-1.2.0 删除。请尽快迁到 ``from tangyuanAI import BaseAgent, AnthropicAgent``。
+**v1.3.0 移除计划**：本模块（``tangyuanAI.Agent_Base_``）和 ``tangyuanAI.anthropic_agent`` 都将在
+1.3.0 删除。请尽快迁到 ``from tangyuanAI import BaseAgent, AnthropicAgent``。
 
 新代码请直接用::
 
@@ -23,7 +23,7 @@ import warnings as _warnings
 # 模块加载即打 deprecation warning —— 任何 `from tangyuanAI.Agent_Base_ import ...`
 # 都会经过 module 求值，触发一次告警。
 _warnings.warn(
-    "tangyuanAI.Agent_Base_ 已弃用；**计划在 v1.2.0 删除**。新代码请用 tangyuanAI.BaseAgent "
+    "tangyuanAI.Agent_Base_ 已弃用；**计划在 v1.3.0 删除**。新代码请用 tangyuanAI.BaseAgent "
     "（实现在 tangyuanAI.agent._OpenAIBase）。",
     DeprecationWarning,
     stacklevel=2,

@@ -5,9 +5,9 @@ tangyuanAI 的所有显著变更记录。
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.2.0] - 2026-09-11
 
-> PR #6 (conversation 重命名) + PR #7 起的所有改动都归在本段,直到用户明确说发布新版本再 bump。
+> 合并自 PR #6 / #7 / #9 / #10 / #11 / #12 / #13 / #14。`Agent_Base_.py` / `anthropic_agent.py` legacy 模块本次**不删除**(影响面太大),推迟到 v1.3.0 再处理。
 
 ### Added
 - **`conversation` / `aconversation` 新主入口 + `tooluse` / `addhistory` 参数**
@@ -307,7 +307,8 @@ pip install --upgrade tangyuanAI==1.1.1
 
 ---
 
-[Unreleased]: https://github.com/secret-tangyuan/tangyuanAI/compare/v1.0.0...HEAD
+[1.2.0]: https://github.com/secret-tangyuan/tangyuanAI/compare/v1.1.1...v1.2.0
+[Unreleased]: https://github.com/secret-tangyuan/tangyuanAI/compare/v1.2.0...HEAD
 [1.0.0]: https://github.com/secret-tangyuan/tangyuanAI/releases/tag/v1.0.0
 [0.2.2]: https://github.com/secret-tangyuan/tangyuanAI/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/secret-tangyuan/tangyuanAI/compare/v0.2.0...v0.2.1

@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""⚠️ v0.4.2+ DEPRECATED — **计划在 v1.2.0 移除**：本模块旧实现仍保留兼容，但 bug 修复 / 瘦身只发生在 ``tangyuanAI.agent``。
+"""⚠️ v0.4.2+ DEPRECATED — **计划在 v1.3.0 移除**：本模块旧实现仍保留兼容，但 bug 修复 / 瘦身只发生在 ``tangyuanAI.agent``。
 
 Anthropic 协议 Agent 基类（兼容旧 import 路径 ``tangyuanAI.anthropic_agent.AnthropicAgent``）。
 逻辑、bug 修复、瘦身现在只在 ``tangyuanAI.agent._AnthropicBase``
 （对外别名 :class:`tangyuanAI.AnthropicAgent`）里维护。
 
-**v1.2.0 移除计划**：本模块（``tangyuanAI.anthropic_agent``）和 ``tangyuanAI.Agent_Base_`` 都将在
-1.2.0 删除。请尽快迁到 ``from tangyuanAI import BaseAgent, AnthropicAgent``。
+**v1.3.0 移除计划**：本模块（``tangyuanAI.anthropic_agent``）和 ``tangyuanAI.Agent_Base_`` 都将在
+1.3.0 删除。请尽快迁到 ``from tangyuanAI import BaseAgent, AnthropicAgent``。
 
 新代码请直接用::
 
@@ -21,7 +21,7 @@ import warnings as _warnings
 # 模块加载即打 deprecation warning —— 任何 `from tangyuanAI.anthropic_agent import ...`
 # 都会经过 module 求值，触发一次告警。
 _warnings.warn(
-    "tangyuanAI.anthropic_agent 已弃用；**计划在 v1.2.0 删除**。新代码请用 tangyuanAI.AnthropicAgent "
+    "tangyuanAI.anthropic_agent 已弃用；**计划在 v1.3.0 删除**。新代码请用 tangyuanAI.AnthropicAgent "
     "（实现在 tangyuanAI.agent._AnthropicBase）。",
     DeprecationWarning,
     stacklevel=2,
@@ -202,7 +202,7 @@ class AnthropicAgent:
         self._build_system_prompt()
 
         # Anthropic 风格 history：不含 system，元素形如 {role, content (str 或 block 列表)}
-        # 注：本模块已弃用（v1.2.0 移除），if/else 双空分支是历史残留 —
+        # 注：本模块已弃用（v1.3.0 移除），if/else 双空分支是历史残留 —
         # 旧版 else 走"从持久化恢复 history"，现已迁到 persistence.load_state()，
         # init 阶段不再做；保留 else 分支仅为兼容子类覆写。
         if new_load:
