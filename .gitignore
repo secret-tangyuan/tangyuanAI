@@ -86,3 +86,4 @@ dist-*/
 _venv*/
 .pytest_cache/
 .ruff_cache/
+.tangyuan_checkpoints/
