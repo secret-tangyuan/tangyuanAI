@@ -66,6 +66,9 @@ def _build_parser() -> argparse.ArgumentParser:
     # 核心：plugin 管理（不依赖任何插件包）
     _add_plugin_subparsers(subparsers)
 
+    # 核心：trace 查看（不依赖任何插件包）
+    _add_trace_subparsers(subparsers)
+
     # 旧版兼容：若核心仍捆绑 kb 子包（升级前残留），尝试挂载
     try:
         from .kb.cli import add_subparser
@@ -477,6 +480,102 @@ def cmd_demo(_args: argparse.Namespace) -> int:
 def cmd_help(_args: argparse.Namespace) -> int:
     """打印简版 help"""
     _build_parser().print_help()
+    return 0
+
+
+def _add_trace_subparsers(subparsers) -> None:
+    """tangyuanai trace 子命令:查看历史 trace span。"""
+    trace_p = subparsers.add_parser("trace", help="查看 / 导出 tracing 数据")
+    trace_sub = trace_p.add_subparsers(dest="trace_action", required=True)
+
+    # tangyuanai trace last N
+    last = trace_sub.add_parser("last", help="读 logs/spans.jsonl 打印最近 N 条 span")
+    last.add_argument("--n", type=int, default=10, help="打印条数(默认 10)")
+    last.set_defaults(func=cmd_trace_last)
+
+    # tangyuanai trace stats
+    stats = trace_sub.add_parser("stats", help="统计 token / cost / latency")
+    stats.set_defaults(func=cmd_trace_stats)
+
+
+def cmd_trace_last(args: argparse.Namespace) -> int:
+    """读 logs/spans.jsonl 打印最近 N 条 span。"""
+    import json as _json
+    from pathlib import Path as _Path
+
+    log_path = _Path("logs/spans.jsonl")
+    if not log_path.exists():
+        print(f"未找到 {log_path};先跑一次 agent.conversation(...) 落 trace。")
+        return 1
+    lines = log_path.read_text(encoding="utf-8").strip().splitlines()
+    n = args.n
+    selected = lines[-n:] if n < len(lines) else lines
+    for line in selected:
+        try:
+            rec = _json.loads(line)
+        except _json.JSONDecodeError:
+            continue
+        latency = rec.get("latency_ms") or 0
+        attrs = rec.get("attrs") or {}
+        model = attrs.get("model", "")
+        cost = attrs.get("cost_usd", 0)
+        pt = attrs.get("prompt_tokens", "")
+        ct = attrs.get("completion_tokens", "")
+        print(
+            f"[{rec['kind']}] {rec['name']} latency={latency:.1f}ms "
+            f"model={model} tokens={pt}+{ct} cost=${cost:.6f} status={rec['status']}"
+        )
+    return 0
+
+
+def cmd_trace_stats(_args: argparse.Namespace) -> int:
+    """统计 logs/spans.jsonl:总 token / 总 cost / p50 p95 latency。"""
+    import json as _json
+    from pathlib import Path as _Path
+
+    log_path = _Path("logs/spans.jsonl")
+    if not log_path.exists():
+        print(f"未找到 {log_path};先跑一次 agent.conversation(...) 落 trace。")
+        return 1
+
+    total_pt = 0
+    total_ct = 0
+    total_cost = 0.0
+    n_estimated_zero = 0
+    latencies: list = []
+    by_kind: dict = {}
+
+    for line in log_path.read_text(encoding="utf-8").strip().splitlines():
+        try:
+            rec = _json.loads(line)
+        except _json.JSONDecodeError:
+            continue
+        attrs = rec.get("attrs") or {}
+        total_pt += int(attrs.get("prompt_tokens", 0) or 0)
+        total_ct += int(attrs.get("completion_tokens", 0) or 0)
+        cost = float(attrs.get("cost_usd", 0) or 0)
+        total_cost += cost
+        if cost == 0 and not attrs.get("cost_estimated", True):
+            n_estimated_zero += 1
+        lat = rec.get("latency_ms")
+        if lat is not None:
+            latencies.append(lat)
+        k = rec.get("kind", "?")
+        by_kind[k] = by_kind.get(k, 0) + 1
+
+    print(f"总 prompt_tokens: {total_pt}")
+    print(f"总 completion_tokens: {total_ct}")
+    print(f"总 cost_usd: ${total_cost:.6f}")
+    if n_estimated_zero:
+        print(f"未估算 cost 的 span 数: {n_estimated_zero} (模型不在 PRICING_TABLE)")
+    if latencies:
+        latencies.sort()
+        p50 = latencies[len(latencies) // 2]
+        p95 = latencies[int(len(latencies) * 0.95)]
+        print(f"latency p50: {p50:.1f}ms  p95: {p95:.1f}ms")
+    print("按 kind 分组:")
+    for k, v in sorted(by_kind.items()):
+        print(f"  {k}: {v}")
     return 0
 
 
