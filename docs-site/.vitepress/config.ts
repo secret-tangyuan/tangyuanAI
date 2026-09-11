@@ -78,6 +78,39 @@ const linkOf = (file: string) => {
 
 const sidebarItems = docs.map((d) => ({ text: d.title, link: linkOf(d.file) }))
 
+/** 把 docs 按 order 排序,然后按 "组" 字段分组成层级 sidebar。order 相同 / 不带 _ 前缀的 docs 走 fallback。*/
+const TUTORIAL_PREFIX = "tutorial/"
+const SIDEBAR_GROUPS: { name: string; match: (f: string) => boolean; collapsed?: boolean }[] = [
+  { name: "教程 Tutorial", match: (f) => f.startsWith(TUTORIAL_PREFIX), collapsed: false },
+  { name: "入门 Getting Started", match: (f) => f === "getting-started" || f === "agent-registration" },
+  { name: "核心能力 Core", match: (f) =>
+    ["tools", "builtin-tools", "protocols", "output-and-hooks", "skill", "mcp", "mcp-skills", "persistence"].includes(f) },
+  { name: "数据 / 插件 / 互操作", match: (f) =>
+    ["kb", "image-generation", "image-input", "plugin-install", "plugin-dev", "plugin-compat", "a2a"].includes(f) },
+]
+
+function buildSidebar() {
+  const groups: Record<string, typeof sidebarItems> = {}
+  for (const g of SIDEBAR_GROUPS) groups[g.name] = []
+  const ungrouped: typeof sidebarItems = []
+  for (const item of sidebarItems) {
+    const group = SIDEBAR_GROUPS.find((g) => g.match(item.link.replace("/docs/", "")))
+    if (group) groups[group.name].push(item)
+    else ungrouped.push(item)
+  }
+  const out: { text: string; items: typeof sidebarItems; collapsed?: boolean }[] = []
+  for (const g of SIDEBAR_GROUPS) {
+    if (groups[g.name].length === 0) continue
+    out.push({ text: g.name, items: groups[g.name], collapsed: g.collapsed })
+  }
+  if (ungrouped.length > 0) {
+    out.push({ text: "其他", items: ungrouped })
+  }
+  return out
+}
+
+const groupedSidebar = buildSidebar()
+
 export default defineConfig({
   title: 'tangyuanAI',
   description: '轻量、模块化的多智能体协作框架',
@@ -106,12 +139,13 @@ export default defineConfig({
       { text: '文档', link: '/docs/' },
       { text: 'GitHub', link: 'https://github.com/secret-tangyuan/tangyuanAI' },
     ],
-    sidebar: [
-      {
-        text: '文档',
-        items: sidebarItems,
-      },
-    ],
+    sidebar: {
+      "/docs/": groupedSidebar,
+    },
+    outline: {  // 右侧页面标题大纲(2-3 级)
+      level: [2, 3],
+      label: "本页目录",
+    },
     search: {
       provider: 'local',
       options: {
@@ -127,7 +161,6 @@ export default defineConfig({
         },
       },
     },
-    outline: { level: [2, 3], label: '本页目录' },
     docFooter: { prev: '上一篇', next: '下一篇' },
     sidebarMenuLabel: '目录',
     returnToTopLabel: '回到顶部',
