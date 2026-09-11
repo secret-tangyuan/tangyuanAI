@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitepress'
-import { readdirSync, readFileSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { resolve, dirname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -9,17 +9,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // 必须放在 docs-site/ 内（与 node_modules 同层），否则 pnpm 依赖隔离下
 // docs/*.md 里的 vue 依赖解析不到，干净环境（Cloudflare Pages / CI）构建会挂。
 const PAGES_DIR = resolve(__dirname, '../docs-build')
-// 文档 markdown 目录（侧栏数据源）：docs-build/docs/
+// 文档 markdown 目录（侧栏数据源）：docs-build/docs/ (递归)
 const DOCS_DIR = resolve(__dirname, '../docs-build/docs')
 
 interface DocMeta {
-  file: string
+  file: string  // 相对 DOCS_DIR 路径,不含 .md (e.g. "tutorial/01-getting-started")
   title: string
   order: number
   icon: string
 }
 
-/** 极简 frontmatter 解析（只取 slug/title/order/icon 标量字段，够用即可；兼容 CRLF/LF 换行） */
+/** 极简 frontmatter 解析（只取 slug/title/order/icon 标量字段,够用即可;兼容 CRLF/LF 换行） */
 function parseFrontmatter(raw: string): Record<string, string | number> {
   const m = raw.match(/^---[\r\n]+([\s\S]*?)[\r\n]+---/)
   if (!m) return {}
@@ -35,16 +35,31 @@ function parseFrontmatter(raw: string): Record<string, string | number> {
   return meta
 }
 
-/** 扫描 docs/*.md，按 frontmatter 的 order 排序 */
+/** 递归扫描 docs-build/docs/,按 frontmatter 的 order 排序 */
+function walkMd(root: string, rel: string = ''): string[] {
+  const out: string[] = []
+  for (const f of readdirSync(root)) {
+    if (f.startsWith('.')) continue
+    const p = join(root, f)
+    const st = statSync(p)
+    if (st.isDirectory()) {
+      out.push(...walkMd(p, rel ? `${rel}/${f}` : f))
+    } else if (st.isFile() && f.endsWith('.md') && !f.startsWith('README')) {
+      out.push(rel ? `${rel}/${f}` : f)
+    }
+  }
+  return out
+}
+
 function loadDocs(): DocMeta[] {
-  return readdirSync(DOCS_DIR)
-    .filter((f) => f.endsWith('.md') && !f.startsWith('README'))
+  return walkMd(DOCS_DIR)
     .map((f) => {
-      const raw = readFileSync(resolve(DOCS_DIR, f), 'utf-8')
+      const raw = readFileSync(join(DOCS_DIR, f), 'utf-8')
       const meta = parseFrontmatter(raw)
+      const base = f.replace(/\.md$/, '')
       return {
-        file: f.replace(/\.md$/, ''),
-        title: String(meta.title ?? f.replace(/\.md$/, '')),
+        file: base,
+        title: String(meta.title ?? base),
         order: Number(meta.order ?? 999),
         icon: String(meta.icon ?? ''),
       }
@@ -54,8 +69,12 @@ function loadDocs(): DocMeta[] {
 
 const docs = loadDocs()
 
-/** 文件名 → 路由链接（文档挂在 /docs/ 下；index 是文档首页） */
-const linkOf = (file: string) => (file === 'index' ? '/docs/' : `/docs/${file}`)
+/** 文件相对路径 → 路由链接（文档挂在 /docs/ 下;index 是文档首页） */
+const linkOf = (file: string) => {
+  if (file === 'index') return '/docs/'
+  // 把 posix 分隔符归一 (Windows 上 walkMd 可能用 \\, VitePress 路由要 /)
+  return `/docs/${file.split(sep).join('/')}`
+}
 
 const sidebarItems = docs.map((d) => ({ text: d.title, link: linkOf(d.file) }))
 

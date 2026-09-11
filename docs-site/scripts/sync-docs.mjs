@@ -16,21 +16,29 @@ const DST_ROOT = resolve(__dirname, '../docs-build')      // 构建目录根（/
 const LANDING_MD = resolve(__dirname, '../landing/index.md') // 落地页包装模板
 const SKIP = new Set(['README.md'])
 
-// 1) 同步文档 markdown → docs-build/docs/
+// 1) 同步文档 markdown → docs-build/docs/  (递归,保留子目录)
 mkdirSync(DST_DOCS, { recursive: true })
-for (const f of readdirSync(DST_DOCS)) {
-  if (f.endsWith('.md') && !existsSync(join(SRC, f))) {
-    rmSync(join(DST_DOCS, f), { force: true })
+function walkMd(root) {
+  const out = []
+  for (const f of readdirSync(root)) {
+    if (f.startsWith('.')) continue
+    const p = join(root, f)
+    const st = statSync(p)
+    if (st.isDirectory()) {
+      out.push(...walkMd(p))
+    } else if (st.isFile() && f.endsWith('.md') && !SKIP.has(f)) {
+      out.push(p)
+    }
   }
+  return out
 }
 let copied = 0
-for (const f of readdirSync(SRC)) {
-  if (!f.endsWith('.md') || SKIP.has(f)) continue
-  const src = join(SRC, f)
-  const dst = join(DST_DOCS, f)
+for (const src of walkMd(SRC)) {
+  const rel = src.slice(SRC.length + 1)
+  const dst = join(DST_DOCS, rel)
+  mkdirSync(dirname(dst), { recursive: true })
   if (!existsSync(dst) || statSync(src).mtimeMs !== statSync(dst).mtimeMs) {
     copyFileSync(src, dst)
-    // 手动还原 mtime，让 VitePress 认为是同一文件
     utimesSync(dst, statSync(src).atime, statSync(src).mtime)
     copied += 1
   }
