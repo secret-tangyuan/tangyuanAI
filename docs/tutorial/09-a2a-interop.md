@@ -1,3 +1,10 @@
+---
+slug: 09-a2a-interop
+title: A2A 互操作
+order: 9
+icon: LAN_OUTLINED
+---
+
 # 09 A2A Interop
 
 > 🎯 学完能把本地 agent 暴露成 A2A 远端协议,或把远端 A2A agent 导入本地。

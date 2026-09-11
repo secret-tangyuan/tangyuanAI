@@ -1,3 +1,10 @@
+---
+slug: 08-knowledge-base
+title: 知识库（RAG）
+order: 8
+icon: LIBRARY_BOOKS_OUTLINED
+---
+
 # 08 Knowledge Base (RAG)
 
 > 🎯 学完能给 agent 接知识库,做文档检索增强问答。

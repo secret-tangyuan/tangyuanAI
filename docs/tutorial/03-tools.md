@@ -1,3 +1,10 @@
+---
+slug: 03-tools
+title: 工具
+order: 3
+icon: BUILD_OUTLINED
+---
+
 # 03 Tools
 
 > 🎯 学完能给 agent 装自定义工具,并配置 ACL / FC 模式 / 工具校验。

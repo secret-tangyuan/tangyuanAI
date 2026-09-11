@@ -1,3 +1,10 @@
+---
+slug: 07-skills-and-mcp
+title: Skill 与 MCP
+order: 7
+icon: EXTENSION_OUTLINED
+---
+
 # 07 Skills and MCP
 
 > 🎯 学完能让 agent 加载外部 Skill 模板,或接入 MCP(Model Context Protocol)服务。

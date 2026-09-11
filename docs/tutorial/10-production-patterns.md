@@ -1,3 +1,10 @@
+---
+slug: 10-production-patterns
+title: 生产模式（v1.4.0+）
+order: 10
+icon: FACTORY_OUTLINED
+---
+
 # 10 Production Patterns
 
 > 🎯 学完能让 agent 进生产(production-grade reliability / observability / eval)。

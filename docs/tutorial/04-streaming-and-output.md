@@ -1,3 +1,10 @@
+---
+slug: 04-streaming-and-output
+title: 流式输出与钩子
+order: 4
+icon: STREAM_OUTLINED
+---
+
 # 04 Streaming and Output
 
 > 🎯 学完能让前端实时看到 agent 输出 / 工具调用进度。

@@ -1,3 +1,10 @@
+---
+slug: 06-multi-agent
+title: 多 Agent 协作
+order: 6
+icon: GROUPS_OUTLINED
+---
+
 # 06 Multi-Agent
 
 > 🎯 学完能让多个 agent 互相调用,带循环检测和深度限制。

@@ -1,3 +1,10 @@
+---
+slug: 05-persistence
+title: 持久化
+order: 5
+icon: SAVE_OUTLINED
+---
+
 # 05 Persistence
 
 > 🎯 学完能让 agent 状态自动保存 / 一次性 AI 调用不污染历史 / 中断恢复。

@@ -5,17 +5,27 @@ order: 2
 icon: ROCKET_LAUNCH_OUTLINED
 ---
 
-# Getting Started
+# 快速开始
 
 > 5 分钟跑通第一个 Agent。
 
 ## 安装
 
+作者推荐用 [uv](https://docs.astral.sh/uv/) 管理依赖(也支持锁文件 + 虚拟环境):
+
 ```bash
+# 方式 1: uv (推荐, 快 + 锁文件)
+uv pip install tangyuanAI        # 装到当前 venv
+# 或建独立 venv:
+uv venv && source .venv/bin/activate && uv pip install tangyuanAI
+
+# 方式 2: pip (传统)
 pip install tangyuanAI
 ```
 
 需要 Python 3.10+。无额外可选依赖。
+
+> 项目内 CI / 文档站构建也都用 uv(`uv run pytest` / `uv run uvicorn`)。
 
 ## 准备 API Key
 

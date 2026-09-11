@@ -1,3 +1,10 @@
+---
+slug: 01-getting-started
+title: 快速开始
+order: 1
+icon: ROCKET_LAUNCH_OUTLINED
+---
+
 # 01 Getting Started
 
 > 🎯 学完能跑通第一个 agent 并发起一次对话。
