@@ -81,6 +81,7 @@ const sidebarItems = docs.map((d) => ({ text: d.title, link: linkOf(d.file) }))
 /** 把 docs 按 order 排序,然后按 "组" 字段分组成层级 sidebar。order 相同 / 不带 _ 前缀的 docs 走 fallback。*/
 const TUTORIAL_PREFIX = "tutorial/"
 const SIDEBAR_GROUPS: { name: string; match: (f: string) => boolean; collapsed?: boolean }[] = [
+  { name: "首页 Home", match: (f) => f === "index" },
   { name: "教程 Tutorial", match: (f) => f.startsWith(TUTORIAL_PREFIX), collapsed: false },
   { name: "入门 Getting Started", match: (f) => f === "getting-started" || f === "agent-registration" },
   { name: "核心能力 Core", match: (f) =>

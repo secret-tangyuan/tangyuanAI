@@ -1,7 +1,7 @@
 ---
 slug: index
 title: 首页
-order: 1
+order: 0
 icon: HOME_OUTLINED
 ---
 
