@@ -307,7 +307,6 @@ class tool:
             # 即:一行直接调 register_tool 当函数用的,log 强警告。
             src, line_no = caller.rsplit(":", 1)
             line_no = int(line_no)
-            likely_programmatic = False
             try:
                 with open(src, encoding="utf-8") as fp:
                     lines = fp.readlines()
@@ -315,8 +314,12 @@ class tool:
                 stripped = caller_line.lstrip()
                 if stripped.startswith("@"):
                     pass  # 装饰器语法 @register_tool(...)
-                elif stripped.startswith(("decorator =", "d =", "dec =")) or "= register_tool" in stripped or "= tool_registry.register_tool" in stripped:
-                    likely_programmatic = True  # 框架接返回值
+                elif (
+                    stripped.startswith(("decorator =", "d =", "dec ="))
+                    or "= register_tool" in stripped
+                    or "= tool_registry.register_tool" in stripped
+                ):
+                    pass  # 框架接返回值的两步走用法(MCPClient 等),合法
                 else:
                     logger.warning(
                         f"register_tool(name=...) 在 {caller} 被直接调用,但返回的是装饰器。"

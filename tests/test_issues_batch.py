@@ -2,15 +2,11 @@
 from __future__ import annotations
 
 import io
-import logging
 import sys
-from unittest.mock import MagicMock
 
 import pytest
-
 from tangyuanAI import BaseAgent, tool_registry
 from tangyuanAI.errors import ConversationError
-
 
 # ============================================================
 # #18 _default_max_tokens 默认 4096
@@ -30,24 +26,13 @@ def test_default_max_tokens_is_4096():
 def test_register_tool_direct_call_raises():
     """v1.2.0 (#17): 不传函数直接调 register_tool(name=...) 应该 log warning(不再静默注册空 schema)。"""
 
-    def _some_other_func():
-        pass
-
-    from tangyuanAI.logging_config import logger
-    with logger.catch():
-        # loguru logger 没 context manager 直接 catch,改用 propagate 到 stderr 并读 stderr
-        pass
-    # 直接调 register_tool 应该 log warning;因为 loguru 默认 sink 不好捕获,改用 caplog 替代
-    import logging
-    # 注册一个 stdlib handler 桥接 loguru(简化:用 monkeypatch 替换 sink)
-    # 这里直接验 loguru 记录: loguru 有 _core 能拿到 records;简单方式 — 用临时 sink
     from loguru import logger as _loguru
     captured = []
-    _loguru.add(lambda msg: captured.append(str(msg)), level="WARNING")
+    sink_id = _loguru.add(lambda msg: captured.append(str(msg)), level="WARNING")
     try:
         tool_registry.register_tool(name="bad", description="bad tool", parameters={})
     finally:
-        _loguru.remove()  # 移除最后一个 sink
+        _loguru.remove(sink_id)
     assert any("register_tool" in m and "装饰器" in m for m in captured), \
         f"应 log warning 提示装饰器误用,实际: {captured}"
 
