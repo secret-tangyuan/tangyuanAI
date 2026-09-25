@@ -74,6 +74,13 @@ class MyAgent(tangyuanAI.Agent):
     # api_provider = "bedrock-runtime.us-east-1.amazonaws.com"  # AWS Bedrock
 ```
 
+> ⚠️ **endpoint 必须是完整的 messages URL**(POST 全路径),不能只填 base。
+> - 官方 Anthropic API: `https://api.anthropic.com/v1/messages`
+> - 第三方兼容(OpenRouter / minimax 等):看服务商文档给的完整路径
+>
+> 如果只填 base(如 `https://api.anthropic.com`)会 POST 到错误路径,返回 404。
+> `_endpoint()` 默认补 `/v1/messages` 仅在 `api_provider` 形如官方格式时有效,**跨 provider 不要依赖此推断**,统一填完整 URL。
+
 `_endpoint()` 智能拼接：
 
 - 末尾是 `/v1/messages` → 原样使用

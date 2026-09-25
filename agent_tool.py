@@ -293,6 +293,39 @@ class tool:
             f"retry={retry!r}, idempotency_ttl={idempotency_ttl!r}"
         )
 
+        # v1.2.0+ (#17): ``register_tool`` 是装饰器,直接调 (``register_tool(name=..., ...)`` 没传函数)
+        # 会把字符串当 ``func`` 注册一个 schema 全空的 tool。直接 raise TypeError 提示用法。
+        # 用 inspect.signature 确认调用栈:必须是 ``@register_tool(...) def foo(): ...`` 模式
+        # 即 ``decorator(func)`` 形式。如果 ``func`` 不可调用 + caller 看上去不像装饰器,raise。
+        if name is not None and not callable(name):
+            # v1.2.0+ (#17): ``register_tool`` 是装饰器,直接调 ``register_tool(name=...)``
+            # 只会返回一个装饰器,**不会** 注册任何工具 — 这是常见误用(用户以为传了
+            # name/description/parameters 就注册成功了)。MCP client 等框架内部代码
+            # 也走"两步走"``decorator = register_tool(...); decorator(func)``,需要保留。
+            # 检测策略:caller 行 trim 后既不以 ``@`` 开头(不是装饰器语法)也不像是
+            # ``decorator = `` / ``d = register_tool``(框架接返回值再调)中间路径 —
+            # 即:一行直接调 register_tool 当函数用的,log 强警告。
+            src, line_no = caller.rsplit(":", 1)
+            line_no = int(line_no)
+            likely_programmatic = False
+            try:
+                with open(src, encoding="utf-8") as fp:
+                    lines = fp.readlines()
+                caller_line = lines[line_no - 1] if 0 < line_no <= len(lines) else ""
+                stripped = caller_line.lstrip()
+                if stripped.startswith("@"):
+                    pass  # 装饰器语法 @register_tool(...)
+                elif stripped.startswith(("decorator =", "d =", "dec =")) or "= register_tool" in stripped or "= tool_registry.register_tool" in stripped:
+                    likely_programmatic = True  # 框架接返回值
+                else:
+                    logger.warning(
+                        f"register_tool(name=...) 在 {caller} 被直接调用,但返回的是装饰器。"
+                        "如要注册工具,请用 @register_tool(...) def foo(): ... 形式,"
+                        "或 ``dec = register_tool(...); dec(func)`` 两步走。"
+                    )
+            except (OSError, ValueError, IndexError):
+                pass
+
         def decorator(func):
             tool_name = name or func.__name__
             logger.trace(f"decorator applied on function {func.__name__!r}, tool_name={tool_name!r}")

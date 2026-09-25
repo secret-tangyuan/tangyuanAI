@@ -171,7 +171,8 @@ class _AgentCommon:
 
     # ---- 协议钩子（子类覆盖） ----
     _transport_cls: type = None  # LLMTransport 子类
-    _default_max_tokens: Optional[int] = None  # Anthropic 用 4096，OpenAI 不传
+    # v1.2.0+: Anthropic API 要求 max_tokens,OpenAI transport 忽略 None;统一默认 4096
+    _default_max_tokens: int = 4096
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -810,10 +811,25 @@ class _AgentCommon:
         tools_schema = self._collect_tools_schema() if (self.fc_model and tooluse) else []
         system_str, rest_messages = self._extract_system_and_messages(work_history)
 
+        # v1.2.0+ (#20): addhistory=False 时若 messages 非空,把 messages 作为
+        # ephemeral user 消息塞进本轮 req(但不写 history),避免 history 仅 system
+        # 时 req.messages=[] 导致 Anthropic 返 400 invalid params。
+        # 若 addhistory=False AND messages=None/空 AND history 也没 user/assistant
+        # → 没东西可发,raise 提示用法。
+        if (not addhistory) and messages:
+            req_messages = list(rest_messages) + [self._build_user_message(messages, images)]
+        elif not rest_messages:
+            from .errors import ConversationError
+            raise ConversationError(
+                "messages 为空:addhistory=False 且未传 messages、history 也无 user/assistant "
+                "消息时无法构造有效请求。要么 messages=非空,要么 addhistory=True。"
+            )
+        else:
+            req_messages = list(rest_messages)
         req = ChatRequest(
             model=self.model_name,
             system=system_str,
-            messages=rest_messages,
+            messages=req_messages,
             tools=tools_schema,
             stream=self.stream,
             max_tokens=self._default_max_tokens,
@@ -907,10 +923,25 @@ class _AgentCommon:
         tools_schema = self._collect_tools_schema() if (self.fc_model and tooluse) else []
         system_str, rest_messages = self._extract_system_and_messages(work_history)
 
+        # v1.2.0+ (#20): addhistory=False 时若 messages 非空,把 messages 作为
+        # ephemeral user 消息塞进本轮 req(但不写 history),避免 history 仅 system
+        # 时 req.messages=[] 导致 Anthropic 返 400 invalid params。
+        # 若 addhistory=False AND messages=None/空 AND history 也没 user/assistant
+        # → 没东西可发,raise 提示用法。
+        if (not addhistory) and messages:
+            req_messages = list(rest_messages) + [self._build_user_message(messages, images)]
+        elif not rest_messages:
+            from .errors import ConversationError
+            raise ConversationError(
+                "messages 为空:addhistory=False 且未传 messages、history 也无 user/assistant "
+                "消息时无法构造有效请求。要么 messages=非空,要么 addhistory=True。"
+            )
+        else:
+            req_messages = list(rest_messages)
         req = ChatRequest(
             model=self.model_name,
             system=system_str,
-            messages=rest_messages,
+            messages=req_messages,
             tools=tools_schema,
             stream=self.stream,
             max_tokens=self._default_max_tokens,
@@ -1019,7 +1050,19 @@ class _AgentCommon:
 # ============================================================================
 
 class _OpenAIBase(_AgentCommon, metaclass=_ProtocolMeta):
-    """OpenAI 兼容 Chat Completions 协议。"""
+    """OpenAI 兼容 Chat Completions 协议。
+
+    ⚠️ **不要直接继承 `_OpenAIBase` / `_AnthropicBase` 来切换 protocol!**
+    继承这两个最终类时 metaclass 已经跑过,``protocol`` 字段不再起作用,
+    仍按当前类的 transport 走(子类继承 ``_OpenAIBase`` 就一直走 OpenAI)。
+    要按 protocol 自动选 transport,**继承占位类** ``tangyuanAI.agent.Agent``::
+
+        from tangyuanAI.agent import Agent as _AgentFactory
+        class MyAgent(_AgentFactory):
+            protocol = "anthropic"  # metaclass 按 protocol 选 _AnthropicBase
+
+    也可继续用顶层导出别名 ``tangyuanAI.BaseAgent`` / ``tangyuanAI.AnthropicAgent``(同上规则)。
+    """
 
     protocol: str = "openai"
     _transport_cls = HttpxOpenAITransport
@@ -1138,7 +1181,19 @@ class _OpenAIBase(_AgentCommon, metaclass=_ProtocolMeta):
 # ============================================================================
 
 class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
-    """Anthropic Messages API 协议。"""
+    """Anthropic Messages API 协议。
+
+    ⚠️ **不要直接继承 `_OpenAIBase` / `_AnthropicBase` 来切换 protocol!**
+    继承这两个最终类时 metaclass 已经跑过,``protocol`` 字段不再起作用,
+    仍按当前类的 transport 走(子类继承 ``_AnthropicBase`` 就一直走 Anthropic)。
+    要按 protocol 自动选 transport,**继承占位类** ``tangyuanAI.agent.Agent``::
+
+        from tangyuanAI.agent import Agent as _AgentFactory
+        class MyAgent(_AgentFactory):
+            protocol = "openai"  # metaclass 按 protocol 选 _OpenAIBase
+
+    也可继续用顶层导出别名 ``tangyuanAI.BaseAgent`` / ``tangyuanAI.AnthropicAgent``(同上规则)。
+    """
 
     protocol: str = "anthropic"
     anthropic_version: str = "2023-06-01"
@@ -1281,6 +1336,15 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
 
         req, transport = self._build_anthropic_request()
 
+        # v1.2.0+ (#20): history 仅有 system 且 addhistory=False 时,messages 空,
+        # raise 而不是让 LLM 返回迷惑的 "messages must not be empty"。
+        if not req.messages:
+            from .errors import ConversationError
+            raise ConversationError(
+                "messages 为空:history 仅有 system message 且 addhistory=False 时"
+                "无法构造有效请求。要么 messages=非空,要么 addhistory=True。"
+            )
+
         full_text = ""
         assistant_blocks: list = []
         tool_uses: list = []
@@ -1337,6 +1401,15 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
             work_history.append(self._build_user_message(messages, images))
 
         req, transport = self._build_anthropic_request()
+
+        # v1.2.0+ (#20): history 仅有 system 且 addhistory=False 时,messages 空,
+        # raise 而不是让 LLM 返回迷惑的 "messages must not be empty"。
+        if not req.messages:
+            from .errors import ConversationError
+            raise ConversationError(
+                "messages 为空:history 仅有 system message 且 addhistory=False 时"
+                "无法构造有效请求。要么 messages=非空,要么 addhistory=True。"
+            )
 
         full_text = ""
         assistant_blocks: list = []

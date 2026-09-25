@@ -118,6 +118,16 @@ class ConnectionError(APIError):
     """网络层异常（DNS / TCP / TLS 等）"""
 
 
+class ConversationError(TangyuanError, ValueError):
+    """agent.conversation / aconversation 在调用方输入不合规时抛出。
+
+    例:`history` 仅有 system message 且 ``addhistory=False`` 时,
+    ``_build_anthropic_request()`` 会构造空 messages,直接发给 LLM 会得到 400 invalid params。
+    在调 transport 前 raise,提示调用方要么传 messages=非空,
+    要么 addhistory=True 让框架追加 user 消息。
+    """
+
+
 _STATUS_TO_EXC: dict[int, type[APIError]] = {
     400: BadRequestError,
     401: AuthenticationError,
