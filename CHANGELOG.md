@@ -5,6 +5,26 @@ tangyuanAI 的所有显著变更记录。
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-09-25
+
+### Added
+- **`conversation` / `aconversation` 新增 `on_event` 回调参数（#19）**
+  - 实时收 `LLMEvent` 流（`type=text` / `tool_call` / `usage` / `done`），用于前端 SSE 推送、Live2D 助手 UI、后端结构化日志等场景
+  - sync 版 `conversation`：`on_event` 是普通 callable
+  - async 版 `aconversation`：`on_event` 可以是 sync 或 `async def`（async callback 会被 `await`）
+  - 流式是"边流边 fire"；非流式在 `await transport.achat(req)` 拿到完整 `LLMResponse` 后拆成 text / tool_call / done 三段 fire
+  - 不传 `on_event` 时行为与 v1.2.0 完全一致，向后兼容
+  - 文档：`docs/protocols.md` 加 `## 流式事件监听 (on_event)` 章节
+
+### Refactor
+- **抽 `_AgentCommon._build_openai_request()` helper**：消除 OpenAI 协议 `conversation` / `aconversation` 两处 `ChatRequest` 构造重复（含 #20 ephemeral messages 逻辑）
+- 新增 `_AgentCommon._fire_on_event` / `_fire_on_events_from_response` / `_fire_on_events_sync` 与 `_AnthropicBase._fire_anthropic_event` 4 个 helper，统一 on_event 触发路径
+- `on_event` callback 抛异常被吞 + `loguru.warning`，不打破 LLM 循环
+
+### Tests
+- 新增 `tests/test_aconversation_stream.py`（5 项）覆盖：sync / async on_event、async callback await、tool_call round、callback 异常吞掉
+- 全套 414 passed / 25 deselected / 0 failed（v1.2.0 = 409，新增 5）
+
 ## [1.2.0] - 2026-09-11
 
 > 合并自 PR #6 / #7 / #9 / #10 / #11 / #12 / #13 / #14。`Agent_Base_.py` / `anthropic_agent.py` legacy 模块本次**不删除**(影响面太大),推迟到 v1.3.0 再处理。

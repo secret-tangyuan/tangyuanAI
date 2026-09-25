@@ -24,6 +24,7 @@ tangyuanAI Agent 统一实现（v0.4.2+）。
 """
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import platform
@@ -32,7 +33,7 @@ import threading
 import time
 import uuid as _uuid
 import warnings
-from typing import Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     from .agent_queue import get_call_chain, get_default_queue
@@ -42,7 +43,9 @@ try:
         HttpxAnthropicTransport,
         HttpxOpenAIResponsesTransport,
         HttpxOpenAITransport,
+        LLMEvent,
         LLMResponse,
+        ToolCall,
     )
     from .logging_config import logger
     from .persistence import _auto_save, _auto_save_async
@@ -784,38 +787,101 @@ class _AgentCommon:
             )
         return full_content, tool_calls_list
 
-    @_auto_save
-    def conversation(
-        self,
-        messages=None,
-        *,
-        tooluse: bool = True,
-        addhistory: bool = True,
-        images=None,
-    ):
-        """共享对话循环（sync）。协议差异通过钩子注入。
+    @staticmethod
+    async def _fire_on_event(on_event, evt: "LLMEvent") -> None:
+        """v1.3.0+(#19):fire 单个 LLMEvent 给 on_event 回调。
 
-        Args:
-            messages: 用户消息（str 或预构造 message dict）；``None`` 表示 FC 续轮。
-            tooluse: 是否把 tools schema 发给 LLM + 是否允许 FC 递归。默认 ``True``。
-            addhistory: 是否把 user 消息写入 history。默认 ``True``。
-                设 ``False`` 可做"不计入对话"的一次性 AI 调用
-                （分类 / 路由 / 上下文增强）。
-            images: 图片输入列表（URL / base64）。
+        同步 callback 直接调;async callback 被 await。
+        on_event 为 None 时静默跳过。callback 抛异常被吞掉 + log warning(不打破 LLM 循环)。
         """
-        work_history = self.history
+        if on_event is None:
+            return
+        try:
+            result = on_event(evt)
+            if inspect.isawaitable(result):
+                await result
+        except Exception as e:
+            logger.warning(f"on_event callback 抛异常被忽略: {e}")
 
-        if addhistory and messages:
-            work_history.append(self._build_user_message(messages, images))
+    @staticmethod
+    async def _fire_on_events_from_response(
+        on_event,
+        llm_rsp: "LLMResponse",
+        tool_calls_list: list,
+    ) -> None:
+        """v1.3.0+(#19):把非流式 LLMResponse 拆成 text / tool_call / done 三个 evt fire。
 
+        ``tool_calls_list`` 已是 dict 形式(由 ``_collect_plain_response`` 产出),不直接复用。
+        简化:从 ``llm_rsp.tool_calls`` 取 ToolCall 对象序列(原始结构,不是 dict)。
+        """
+        if on_event is None:
+            return
+        if llm_rsp.text:
+            await _AgentCommon._fire_on_event(on_event, LLMEvent(
+                type="text", text=llm_rsp.text, stop_reason=llm_rsp.stop_reason,
+            ))
+        for tc in llm_rsp.tool_calls:
+            await _AgentCommon._fire_on_event(on_event, LLMEvent(
+                type="tool_call", tool_call=tc, stop_reason=llm_rsp.stop_reason,
+            ))
+        await _AgentCommon._fire_on_event(on_event, LLMEvent(
+            type="done",
+            stop_reason=llm_rsp.stop_reason,
+            usage=llm_rsp.usage,
+        ))
+
+    @staticmethod
+    def _fire_on_events_sync(
+        on_event,
+        llm_rsp,
+        full_content: str,
+        tool_calls_list: list,
+    ) -> None:
+        """v1.3.0+(#19):sync 版 fire helper。
+
+        流式路径:``llm_rsp=None``,从 ``tool_calls_list``(dict 形式)构造 evt。
+        非流式路径:``llm_rsp`` 是 ``LLMResponse``,优先用 ``llm_rsp.tool_calls`` 序列构造。
+        callback 异常被吞 + log warning,不打破 conversation 返回值。
+        """
+        if on_event is None:
+            return
+        try:
+            if full_content:
+                on_event(LLMEvent(type="text", text=full_content))
+            # tool_calls_list 是 dict 形式(从 _collect_plain_response / _collect_stream_events 出来)
+            for tc_dict in tool_calls_list:
+                try:
+                    args = json.loads(tc_dict["function"]["arguments"]) if isinstance(tc_dict["function"]["arguments"], str) else tc_dict["function"]["arguments"]
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    args = {}
+                on_event(LLMEvent(type="tool_call", tool_call=ToolCall(
+                    id=tc_dict.get("id", ""),
+                    name=tc_dict["function"].get("name", ""),
+                    arguments=args,
+                )))
+            on_event(LLMEvent(type="done"))
+        except Exception as e:
+            logger.warning(f"on_event callback 抛异常被忽略: {e}")
+
+    def _build_openai_request(
+        self,
+        messages,
+        images,
+        work_history: list,
+        tooluse: bool,
+        addhistory: bool,
+    ) -> ChatRequest:
+        """OpenAI 协议 ChatRequest 构造 helper(v1.3.0+ 抽出)。
+
+        整合:
+        - tooluse 控制是否带 tools schema
+        - #20 ephemeral messages:addhistory=False + messages 非空 → 临时 user 消息塞进 req
+          (不写 history)
+        - #20 raise ConversationError:所有分支都没东西可发时
+        """
         tools_schema = self._collect_tools_schema() if (self.fc_model and tooluse) else []
         system_str, rest_messages = self._extract_system_and_messages(work_history)
 
-        # v1.2.0+ (#20): addhistory=False 时若 messages 非空,把 messages 作为
-        # ephemeral user 消息塞进本轮 req(但不写 history),避免 history 仅 system
-        # 时 req.messages=[] 导致 Anthropic 返 400 invalid params。
-        # 若 addhistory=False AND messages=None/空 AND history 也没 user/assistant
-        # → 没东西可发,raise 提示用法。
         if (not addhistory) and messages:
             req_messages = list(rest_messages) + [self._build_user_message(messages, images)]
         elif not rest_messages:
@@ -826,7 +892,7 @@ class _AgentCommon:
             )
         else:
             req_messages = list(rest_messages)
-        req = ChatRequest(
+        return ChatRequest(
             model=self.model_name,
             system=system_str,
             messages=req_messages,
@@ -834,6 +900,35 @@ class _AgentCommon:
             stream=self.stream,
             max_tokens=self._default_max_tokens,
         )
+
+    @_auto_save
+    def conversation(
+        self,
+        messages=None,
+        *,
+        tooluse: bool = True,
+        addhistory: bool = True,
+        images=None,
+        on_event: "Optional[Callable[[LLMEvent], Any]]" = None,
+    ):
+        """共享对话循环（sync）。协议差异通过钩子注入。
+
+        Args:
+            messages: 用户消息（str 或预构造 message dict）；``None`` 表示 FC 续轮。
+            tooluse: 是否把 tools schema 发给 LLM + 是否允许 FC 递归。默认 ``True``。
+            addhistory: 是否把 user 消息写入 history。默认 ``True``。
+                设 ``False`` 可做"不计入对话"的一次性 AI 调用
+                （分类 / 路由 / 上下文增强）。
+            images: 图片输入列表（URL / base64）。
+            on_event: v1.3.0+(#19)可选回调,实时收 ``LLMEvent``(text / tool_call / usage / done)。
+                用于前端 SSE、后端日志、Live2D 助手等场景。``None`` 表示不监听(默认)。
+        """
+        work_history = self.history
+
+        if addhistory and messages:
+            work_history.append(self._build_user_message(messages, images))
+
+        req = self._build_openai_request(messages, images, work_history, tooluse, addhistory)
 
         transport = self._transport_cls(
             endpoint=self._endpoint(),
@@ -849,6 +944,8 @@ class _AgentCommon:
             except Exception as e:
                 logger.error(f"流式响应处理错误: {e}")
                 full_content = ""
+            if on_event is not None:
+                self._fire_on_events_sync(on_event, None, full_content, tool_calls_list)
         else:
             try:
                 from .tracing import CostCalculator, current_span, trace_llm_call
@@ -867,6 +964,9 @@ class _AgentCommon:
             except Exception as e:
                 logger.error(f"非流式响应处理错误: {e}")
                 full_content = ""
+            if on_event is not None and full_content:
+                # 异常路径上 on_event 也 fire,但 full_content 可能为空;fire done 让订阅者知道结束
+                self._fire_on_events_sync(on_event, None, full_content, tool_calls_list)
 
         logger.trace(f"AI 回复内容长度：{len(full_content)}")
 
@@ -913,39 +1013,24 @@ class _AgentCommon:
         tooluse: bool = True,
         addhistory: bool = True,
         images=None,
+        on_event: "Optional[Callable[[LLMEvent], Any]]" = None,
     ):
-        """共享对话循环（async）。"""
+        """共享对话循环（async）。
+
+        Args:
+            messages: 用户消息；``None`` 表示 FC 续轮。
+            tooluse: 是否带 tools schema + 是否允许 FC 递归。
+            addhistory: 是否把 user 消息写入 history。
+            images: 图片输入列表（URL / base64）。
+            on_event: v1.3.0+(#19)可选回调,实时收 ``LLMEvent``。
+                接受同步或 async callable,sync 直接调,async 会 await。
+        """
         work_history = self.history
 
         if addhistory and messages:
             work_history.append(self._build_user_message(messages, images))
 
-        tools_schema = self._collect_tools_schema() if (self.fc_model and tooluse) else []
-        system_str, rest_messages = self._extract_system_and_messages(work_history)
-
-        # v1.2.0+ (#20): addhistory=False 时若 messages 非空,把 messages 作为
-        # ephemeral user 消息塞进本轮 req(但不写 history),避免 history 仅 system
-        # 时 req.messages=[] 导致 Anthropic 返 400 invalid params。
-        # 若 addhistory=False AND messages=None/空 AND history 也没 user/assistant
-        # → 没东西可发,raise 提示用法。
-        if (not addhistory) and messages:
-            req_messages = list(rest_messages) + [self._build_user_message(messages, images)]
-        elif not rest_messages:
-            from .errors import ConversationError
-            raise ConversationError(
-                "messages 为空:addhistory=False 且未传 messages、history 也无 user/assistant "
-                "消息时无法构造有效请求。要么 messages=非空,要么 addhistory=True。"
-            )
-        else:
-            req_messages = list(rest_messages)
-        req = ChatRequest(
-            model=self.model_name,
-            system=system_str,
-            messages=req_messages,
-            tools=tools_schema,
-            stream=self.stream,
-            max_tokens=self._default_max_tokens,
-        )
+        req = self._build_openai_request(messages, images, work_history, tooluse, addhistory)
 
         transport = self._transport_cls(
             endpoint=self._endpoint(),
@@ -981,6 +1066,7 @@ class _AgentCommon:
                                 f"total={evt.usage.total_tokens}",
                                 other=True,
                             )
+                        await self._fire_on_event(on_event, evt)
             except Exception as e:
                 logger.error(f"异步流式响应处理错误: {e}")
                 full_content = ""
@@ -1000,6 +1086,7 @@ class _AgentCommon:
                                 completion_tokens=llm_rsp.usage.completion_tokens,
                             )
                 full_content, tool_calls_list = self._collect_plain_response(llm_rsp)
+                await self._fire_on_events_from_response(on_event, llm_rsp, tool_calls_list)
             except Exception as e:
                 logger.error(f"异步非流式响应处理错误: {e}")
                 full_content = ""
@@ -1287,6 +1374,22 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
             self.pack(llm_rsp.text, finish_task=False)
         return full_text
 
+    @staticmethod
+    async def _fire_anthropic_event(on_event, evt: "LLMEvent") -> None:
+        """v1.3.0+(#19):Anthropic 协议异步版 fire helper。
+
+        同步 callback 直接调;async callback await。
+        callback 异常被吞掉 + log warning,不打破 LLM 循环。
+        """
+        if on_event is None:
+            return
+        try:
+            result = on_event(evt)
+            if inspect.isawaitable(result):
+                await result
+        except Exception as e:
+            logger.warning(f"on_event callback 抛异常被忽略: {e}")
+
     def _execute_anthropic_tool_use(self, tu: dict) -> dict:
         """执行单个 tool_use（dispatch + hooks + async_id 包裹），返回 Anthropic tool_result dict。"""
         self.current_task_id = self._generate_task_id()
@@ -1319,6 +1422,7 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
         tooluse: bool = True,
         addhistory: bool = True,
         images=None,
+        on_event: "Optional[Callable[[LLMEvent], Any]]" = None,
     ):
         """Anthropic Messages API 同步对话。
 
@@ -1328,6 +1432,7 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
             addhistory: 是否把 user / assistant / tool_result 消息写入 history。
                 设 ``False`` 可做"不计入对话"的一次性 AI 调用。
             images: 图片输入列表（URL / base64）。
+            on_event: v1.3.0+(#19)可选回调,实时收 ``LLMEvent``。sync 上下文用。
         """
         work_history = self.history
 
@@ -1355,11 +1460,29 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
                 with trace_llm_call(name="anthropic.chat_stream", model=self.model_name, stream=True):
                     for evt in transport.chat_stream(req):
                         self._accumulate_anthropic_evt(assistant_blocks, tool_uses, evt)
+                        if on_event is not None:
+                            result = on_event(evt)
+                            if inspect.isawaitable(result):
+                                logger.warning(
+                                    "on_event 是 async callable,但在 sync conversation 调用"
+                                    "无法 await。请改用 aconversation。"
+                                )
             else:
                 with trace_llm_call(name="anthropic.chat", model=self.model_name, stream=False):
                     full_text = self._accumulate_anthropic_rsp(
                         assistant_blocks, tool_uses, full_text, transport.chat(req),
                     )
+                # 非流式:把累积的 blocks 拆成 evt fire 一遍
+                if on_event is not None:
+                    text_evt = LLMEvent(type="text", text=full_text)
+                    on_event(text_evt)
+                    for tu in tool_uses:
+                        on_event(LLMEvent(type="tool_call", tool_call=ToolCall(
+                            id=tu.get("id", ""),
+                            name=tu.get("name", ""),
+                            arguments=tu.get("input", {}),
+                        )))
+                    on_event(LLMEvent(type="done"))
         except Exception as e:
             logger.error(f"{self.name} Anthropic 调用失败：{e}")
             raise
@@ -1393,8 +1516,12 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
         tooluse: bool = True,
         addhistory: bool = True,
         images=None,
+        on_event: "Optional[Callable[[LLMEvent], Any]]" = None,
     ):
-        """Anthropic Messages API 异步对话。"""
+        """Anthropic Messages API 异步对话。
+
+        on_event: v1.3.0+(#19)可选回调,实时收 ``LLMEvent``。
+        """
         work_history = self.history
 
         if addhistory and messages:
@@ -1421,11 +1548,29 @@ class _AnthropicBase(_AgentCommon, metaclass=_ProtocolMeta):
                 with trace_llm_call(name="anthropic.achat_stream", model=self.model_name, stream=True):
                     async for evt in transport.achat_stream(req):
                         self._accumulate_anthropic_evt(assistant_blocks, tool_uses, evt)
+                        if on_event is not None:
+                            result = on_event(evt)
+                            if inspect.isawaitable(result):
+                                await result
             else:
                 with trace_llm_call(name="anthropic.achat", model=self.model_name, stream=False):
                     full_text = self._accumulate_anthropic_rsp(
                         assistant_blocks, tool_uses, full_text, await transport.achat(req),
                     )
+                # 非流式:把累积的 blocks 拆成 evt fire 一遍
+                if on_event is not None:
+                    if full_text:
+                        await _AnthropicBase._fire_anthropic_event(on_event, LLMEvent(type="text", text=full_text))
+                    for tu in tool_uses:
+                        await _AnthropicBase._fire_anthropic_event(on_event, LLMEvent(
+                            type="tool_call",
+                            tool_call=ToolCall(
+                                id=tu.get("id", ""),
+                                name=tu.get("name", ""),
+                                arguments=tu.get("input", {}),
+                            ),
+                        ))
+                    await _AnthropicBase._fire_anthropic_event(on_event, LLMEvent(type="done"))
         except Exception as e:
             logger.error(f"{self.name} Anthropic 异步调用失败：{e}")
             raise
