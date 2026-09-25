@@ -89,9 +89,24 @@ def setup_logging(
     )
 
     # 添加控制台处理器（可选）
+    # v1.2.0+ (#21): Windows 上 sys.stderr 默认 cp936/gbk,emoji / 中文会抛 UnicodeEncodeError。
+    # 强制用 utf-8 包一层(带 errors='replace' 兜底),Linux/Mac 不受影响(sys.stderr 已是 utf-8)。
     if add_console_handler:
+        stderr_target = sys.stderr
+        try:
+            # Python 3.7+ 才有 reconfigure
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        except (AttributeError, OSError):
+            # fallback:有 raw buffer 时包一层 TextIOWrapper
+            # (测试用 StringIO mock 没有 .buffer,跳过 fallback 保留原 stream)
+            raw_buffer = getattr(sys.stderr, "buffer", None)
+            if raw_buffer is not None:
+                import io
+                stderr_target = io.TextIOWrapper(
+                    raw_buffer, encoding="utf-8", errors="replace", line_buffering=True
+                )
         logger.add(
-            sys.stderr,
+            stderr_target,
             level=level,
             format=console_format,
             colorize=True
