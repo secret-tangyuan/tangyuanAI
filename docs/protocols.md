@@ -49,8 +49,8 @@ class ChatAgent(tangyuanAI.Agent):
 | 方法 | 说明 |
 |---|---|
 | `__init__(new_load=True)` | 初始化 |
-| `conversation(messages, *, tooluse=True, addhistory=True, images=None)` | 同步对话（v1.3.0+；旧名 `conversation_with_tool` 已 deprecated alias） |
-| `aconversation(messages, *, tooluse=True, addhistory=True, images=None)` | 异步对话（旧名 `aconversation_with_tool` 已 deprecated alias） |
+| `conversation(messages, *, tooluse=True, addhistory=True, images=None, on_event=None)` | 同步对话（v1.3.0+ `on_event` 收 `LLMEvent` 流） |
+| `aconversation(messages, *, tooluse=True, addhistory=True, images=None, on_event=None)` | 异步对话；`on_event` 接受 sync 或 async callable（async 会被 `await`） |
 | `out(content: dict) -> None` | 输出回调（可重写） |
 | `pack(message, tool_model, tool_name, tool_parameter, finish_task, other, tool_result)` | 事件打包（推荐重写 `out` 而不是 `pack`） |
 | `register_tool_hook(hook_func)` | 注册工具钩子 |
@@ -98,3 +98,55 @@ def __init__(self, new_load=True):
 ```
 
 完整示例见 `examples/example6_anthropic_custom_provider.py`。
+
+## 流式事件监听 (`on_event`)
+
+`conversation` / `aconversation` 在 v1.3.0+ 新增 `on_event` 参数，实时把 `LLMEvent`（`type=text` / `tool_call` / `usage` / `done`）推给回调，用于前端 SSE 推送、Live2D 助手 UI、后端结构化日志等场景。
+
+### 用法
+
+```python
+import asyncio
+from tangyuanAI import Agent, template_agent, activate_template
+
+@tangyuanAI.template_agent("chat", uuid="chat-uuid", description="chat")
+class ChatAgent(tangyuanAI.Agent):
+    protocol = "openai"
+    prompt = "..."
+    model_name = "..."
+    api_key = "..."
+    api_provider = "..."
+
+activate_template("chat")
+agent = tangyuanAI.agent_list["chat"]
+
+# sync：callback 是普通 callable
+def log_event(evt):
+    print(f"[{evt.type}]", evt.text or evt.tool_call)
+
+reply = agent.conversation("你好", on_event=log_event)
+
+# async：callback 可以是 async def,内部会自动 await
+async def sse_push(evt):
+    await websocket.send(f"event: {evt.type}\ndata: {evt.text or ''}\n\n")
+
+asyncio.run(agent.aconversation("你好", on_event=sse_push))
+```
+
+### 事件类型
+
+| `type` | 字段 | 触发时机 |
+|---|---|---|
+| `text` | `text: str` | LLM 流式 / 非流式返回文本 |
+| `tool_call` | `tool_call: ToolCall` | LLM 决定调工具（含 `id` / `name` / `arguments`） |
+| `usage` | `usage: UsageInfo` | 流式收到 usage 块时 |
+| `done` | `stop_reason: Optional[str]` / `usage` | 整轮响应结束 |
+
+### 注意事项
+
+- **不传 `on_event`** 时行为与 v1.2.0 完全一致，向后兼容。
+- **callback 抛异常**会被吞掉 + `loguru.warning`，不会影响 `conversation` / `aconversation` 返回值（避免打断 LLM 循环）。
+- **async callback 在 sync 上下文**调用会被警告（无法 await），请改用 `aconversation`。
+- **流式**是真正"边流边 fire"；**非流式**会在 `await transport.achat(req)` 拿到完整 `LLMResponse` 后拆成 text / tool_call / done 三段 fire。
+
+详细动机见 [issue #19](https://github.com/secret-tangyuan/tangyuanAI/issues/19)。
